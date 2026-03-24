@@ -1,0 +1,11 @@
+.env
+node_modules
+.DS_Store
+eslint.config.mjs
+package-lock.json
+schema.mwb
+schema.mwb.bak
+courses_seeding_data.sql
+prerequisites_seeding_data.sql
+semesters_seeding_data.sql
+users_seeding_data.sql
