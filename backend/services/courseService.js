@@ -11,11 +11,11 @@ import * as db from '../db/db.js';
 import Course from './course.js';
 
 class CourseService {
-    #course_list;
+    #course_map;
     numCourses;
 
     constructor() {
-        this.#course_list = [];
+        this.#course_map = new Map();
     }
 
     async init() {
@@ -25,15 +25,25 @@ class CourseService {
             this.numCourses = result.length;
 
             for (let index = 1; index <= this.numCourses; index++) {
-                const course = new Course(index);
-                this.#course_list.push(course);
+                var course = new Course(index);
+                await course.init();
+                //console.log(course.course_code);
+                this.#course_map.set(course.course_code, course);
             }
+
         } catch (err) {
             console.error('Error:', err);
         }
+    }
+
+    getCourseInfo(course_code) {
+        const course = this.#course_map.get(course_code);
+        return [course.course_id, course_code, course.title, course.description, course.credits];
     }
 }
 
 const cs = new CourseService();
 
-cs.init();
+await cs.init();
+
+console.log(cs.getCourseInfo("CMSC495"))

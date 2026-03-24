@@ -5,6 +5,7 @@
 import * as db from '../db/db.js';
 
 class Course {
+
     constructor(course_id) {
         this.course_id = course_id;
     }
