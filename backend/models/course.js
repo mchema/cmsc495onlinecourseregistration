@@ -31,6 +31,10 @@ class Course {
             console.error('Error:', err);
         }
     }
+
+    async refresh() {
+        await this.init();
+    }
 }
 
 export default Course;

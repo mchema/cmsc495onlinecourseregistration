@@ -26,20 +26,21 @@
  *
  */
 
-import CourseService from './services/courseService.js';
-import AuthService from './services/authService.js';
+//import CourseService from './services/courseService.js';
+import CourseController from './controllers/courseController.js';
+import AuthController from './controllers/authController.js';
 import * as readline from 'node:readline/promises';
 import { stdin as input, stdout as output, exit } from 'node:process';
+import * as Errors from './errors/index.js';
 
 const rl = readline.createInterface({ input, output });
 
 async function main() {
     try {
-        const cs = new CourseService();
-        await cs.init();
-        const as = new AuthService();
+        const cc = new CourseController(rl);
+        const ac = new AuthController(rl);
 
-        const context = { cs, as, currentUser: null };
+        const context = { rl, cc, ac, currentUser: null };
 
         let state = 'LOGIN';
 
@@ -52,10 +53,10 @@ async function main() {
                     state = await mainMenu();
                     break;
                 case 'COURSES_MENU':
-                    state = await loginMenu(context);
+                    state = await coursesMenu(context);
                     break;
                 case 'USERS_MENU':
-                    state = await loginMenu(context);
+                    state = await usersMenu(context);
                     break;
                 case 'ENROLLMENT_MENU':
                     state = await loginMenu(context);
@@ -101,19 +102,13 @@ async function loginMenu(context) {
     }
 
     try {
-        //Needs adjustment once auth process is complete.
-        const user = await context.as.loginUser(userEmail, userPassword);
-
-        if (user == null) {
-            console.log('\nLogin failed. Invalid email and/or password.\n');
-            return 'LOGIN';
-        }
-
+        const user = await context.ac.loginUser(userEmail, userPassword);
         context.currentUser = user;
         console.log('\nLogin successful.\n');
         return 'MAIN_MENU';
     } catch (err) {
-        console.error(err);
+        console.log('\n', err.message, '\n');
+        return 'LOGIN';
     }
 }
 
@@ -164,5 +159,93 @@ async function mainMenu() {
             return 'MAIN_MENU';
     }
 }
+
+// course menu
+async function coursesMenu(context) {
+    console.log('**** COURSES MENU ****');
+    console.log('Enter the number that corresponds to your choice.');
+    console.log('1. Get Course Info');
+    console.log('2. Add New Course');
+    console.log('3. Update Existing Course');
+    console.log('4. Remove an Existing Course');
+    console.log('6. Logout');
+    console.log('7. Exit');
+
+    const selection = (await rl.question('Select an option: ')).trim();
+
+    switch (selection.toLowerCase()) {
+        case '1':
+            console.log(await context.cc.getCourseInfo());
+            return 'COURSES_MENU';
+
+        case '2':
+            return 'COURSES_MENU';
+
+        case '3':
+            return 'COURSES_MENU';
+
+        case '4':
+            return 'COURSES_MENU';
+
+        case '6':
+        case 'logout':
+            return 'LOGIN';
+
+        case '7':
+        case 'exit':
+            return 'EXIT';
+
+        default:
+            console.log('\nInvalid selection.\n');
+            return 'COURSES_MENU';
+    }
+}
+
+// user menu
+async function usersMenu(context) {
+    console.log('**** USERS MENU ****');
+    console.log('Enter the number that corresponds to your choice.');
+    console.log('1. Get Current User Info');
+    console.log('2. Update User Info');
+    console.log('3. ADMIN - Add New User');
+    console.log('4. ADMIN - Remove a User');
+    console.log('6. Logout');
+    console.log('7. Exit');
+
+    const selection = (await rl.question('Select an option: ')).trim();
+
+    switch (selection.toLowerCase()) {
+        case '1':
+            console.log(await context.cc.getCourseInfo());
+            return 'USERS_MENU';
+
+        case '2':
+            return 'USERS_MENU';
+
+        case '3':
+            return 'USERS_MENU';
+
+        case '4':
+            return 'USERS_MENU';
+
+        case '6':
+        case 'logout':
+            return 'LOGIN';
+
+        case '7':
+        case 'exit':
+            return 'EXIT';
+
+        default:
+            console.log('\nInvalid selection.\n');
+            return 'USERS_MENU';
+    }
+}
+
+async function enrollmentMenu(context) {}
+
+async function sectionsMenu(context) {}
+
+async function prerequisitesMenu(context) {}
 
 main();

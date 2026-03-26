@@ -8,7 +8,7 @@
  */
 
 import * as db from '../db/db.js';
-import Course from './course.js';
+import Course from '../models/course.js';
 
 class CourseService {
     #course_map;

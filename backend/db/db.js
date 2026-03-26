@@ -39,3 +39,8 @@ export const queryAdm = (sql, params) => {
         });
     });
 };
+
+export const close = () => {
+    stdCon.close();
+    admCon.close();
+}

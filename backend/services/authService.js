@@ -8,80 +8,98 @@
  * On logout, unload user data from memory and ensure database matches.
  */
 
-import * as db from '../db/db.js';
-import User from '../services/user.js';
+import User from '../models/user.js';
+import * as Errors from '../errors/index.js';
 import * as bcrypt from 'bcrypt';
-import * as readline from 'node:readline/promises';
-import { stdin as input, stdout as output } from 'node:process';
+import * as db from '../db/db.js';
 
 const saltRounds = 10;
-const rl = readline.createInterface({ input, output });
 
 class AuthService {
     constructor() {}
 
-    // Login User
+    // Initialize User
     async loginUser(email, password) {
         const user = new User(email);
-        const loginResult = await user.init();
-
-        if (loginResult == 'ERROR') {
-            return null;
-        }
+        await user.init();
         
-        if (user.getPasswordHash() == 'Password') {
-            console.log('Password must be changed as this is your first time signing in.\n\n\n');
-            await this.changePassword(email);
+        const passwordCheck = await bcrypt.compare(password, user.getPasswordHash());
+
+        if (passwordCheck === false) {
+            throw new Errors.AuthenticationError('Invalid email and/or password.');
         }
 
-        await bcrypt.compare(password, user.getPasswordHash()).then(function (result) {
-            if (result == true) {
-                return user;
-            } else {
-                return null;
-            }
-        });
+        return user;
+    }
+
+    // Check for First Time Login
+    async firstLoginCheck(user) {
+        if (user.getPasswordHash() === 'Password') {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    // Change Password enforces Password Policy, Hashing, and persistence
+    async changePassword(email, password) {
+        const hash = await bcrypt.hash(password, saltRounds);
+        await this.setPassword(email, hash);
+    }
+
+    // Set Password Hash
+    async setPassword(email, password) {
+        await db.queryAdm('UPDATE users SET password_hash = ? WHERE email = ?', [password, email]);
     }
 
     // Set User Type
-    async setUserType(user_id) {
-        var userType = await rl.question(
-            'Please select the User type. Enter either "student" or "professor": '
-        );
-        if (userType == 'student') {
+    async setUserType(user_id, userType) {
+        if (userType === 'student') {
+            const exists = await db.queryAdm('SELECT * FROM students WHERE user_id = ?', [user_id]);
+
+            if (exists.length > 0) {
+                throw new Errors.DuplicateEntryError('User is already a student.');
+            }
             await db.queryAdm(
                 "INSERT INTO students (user_id, major) VALUES (?, 'Computer Science')",
                 [user_id]
             );
-        } else if (userType == 'professor') {
+        } else if (userType === 'professor') {
+            const exists = await db.queryAdm('SELECT * FROM professors WHERE user_id = ?', [
+                user_id,
+            ]);
+
+            if (exists.length > 0) {
+                throw new Errors.DuplicateEntryError('User is already a professor.');
+            }
             await db.queryAdm(
                 "INSERT INTO professors (user_id, department) VALUES (?, 'Engineering')",
                 [user_id]
             );
+        } else {
+            throw new Errors.ValidationError(
+                'Invalid user type. Must be "student" or "professor".'
+            );
         }
+
+        return null;
     }
 
-    // Logout User
-    logoutUser() {}
+    //async authorizeRole(user, allowedRoles) {}
 
-    // Password Change
-    async changePassword(email) {
-        var bool = false;
-        var pwd;
-        while (bool == false) {
-            pwd = await rl.question('Please enter a new password: ');
-            var pwdVerification = await rl.question('Please re-enter the password: ');
+    async logoutUser(user) {
+        const dbUser = new User(user.getEmail());
+        await dbUser.init();
 
-            if (pwd == pwdVerification) {
-                bool = true;
-            } else {
-                console.log('Passwords did not match, please try again.');
-            }
+        if (dbUser.compareUser(user) === true) {
+            return null;
+        } else {
+            await db.queryAdm(
+                'UPDATE users SET name = ?, email = ?, password_hash = ? WHERE user_id = ?',
+                [user.getName(), user.getEmail(), user.getPasswordHash(), user.getUserID()]
+            );
+            return null;
         }
-
-        await bcrypt.hash(pwd, saltRounds).then(function (hash) {
-            db.queryAdm('UPDATE users SET password_hash = ? WHERE email = ?', [hash, email]);
-        });
     }
 }
 
