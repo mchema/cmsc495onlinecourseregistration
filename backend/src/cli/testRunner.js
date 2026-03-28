@@ -1,12 +1,10 @@
 import { spawn } from 'node:child_process';
 import process from 'node:process';
 
-const child = spawn('node', ['./backend/app.js']);
+const child = spawn('node', ['./backend/src/app.js']);
 child.stdout.setEncoding('utf-8');
 
-// =========================
 // TEST DATA
-// =========================
 const TEST_USER_EMAIL = `test_${Date.now()}@gmail.com`;
 
 const ADMIN_EMAIL = 'verst_max1@gmail.com';
@@ -17,15 +15,11 @@ const PROFESSOR_EMAIL = 'wolff_toto00@gmail.com';
 const TEST_PREREQ_COURSE = 'CMSC105';
 const TEST_PREREQ_REQUIRED_COURSE = 'CMSC100';
 
-// =========================
 // STATE + BUFFER
-// =========================
 let buffer = '';
 let state = 'LOGIN_EMAIL';
 
-// =========================
 // HELPERS
-// =========================
 function write(input) {
     console.log(`[INPUT] ${input}`);
     child.stdin.write(input + '\n');
@@ -39,9 +33,7 @@ function hasAll(...texts) {
     return texts.every((text) => has(text));
 }
 
-// =========================
 // STATE MACHINE ENGINE
-// =========================
 function advance() {
     let progressed = true;
 
@@ -49,9 +41,7 @@ function advance() {
         progressed = false;
 
         switch (state) {
-            // =========================
             // LOGIN
-            // =========================
             case 'LOGIN_EMAIL':
                 if (has('enter your email')) {
                     write(ADMIN_EMAIL);
@@ -68,9 +58,7 @@ function advance() {
                 }
                 break;
 
-            // =========================
             // MAIN → USERS
-            // =========================
             case 'MAIN_MENU':
                 if (hasAll('main menu', '1. courses', '7. exit', 'select an option')) {
                     write('2');
@@ -80,9 +68,7 @@ function advance() {
                 }
                 break;
 
-            // =========================
             // USERS → ADD
-            // =========================
             case 'USERS_MENU':
                 if (hasAll('users menu', '1. get current user info', '8. exit', 'select an option')) {
                     write('3');
@@ -117,9 +103,7 @@ function advance() {
                 }
                 break;
 
-            // =========================
             // REMOVE USER
-            // =========================
             case 'REMOVE_USER_SELECT':
                 if (hasAll('users menu', '1. get current user info', '8. exit', 'select an option')) {
                     write('4');
@@ -138,9 +122,7 @@ function advance() {
                 }
                 break;
 
-            // =========================
             // BACK → MAIN → SECTIONS
-            // =========================
             case 'BACK_TO_MAIN':
                 if (hasAll('users menu', '1. get current user info', '8. exit', 'select an option')) {
                     write('6');
@@ -159,9 +141,7 @@ function advance() {
                 }
                 break;
 
-            // =========================
             // SECTIONS → ADD
-            // =========================
             case 'SECTIONS_MENU':
                 if (hasAll('sections menu', '1. get section info', '9. exit', 'select an option')) {
                     write('4');
@@ -252,9 +232,7 @@ function advance() {
                 }
                 break;
 
-            // =========================
             // PREREQUISITES
-            // =========================
             case 'MAIN_TO_PREREQUISITES':
                 if (hasAll('main menu', '1. courses', '7. exit', 'select an option')) {
                     write('5');
@@ -363,9 +341,7 @@ function advance() {
                 }
                 break;
 
-            // =========================
             // ENROLLMENT
-            // =========================
             case 'MAIN_TO_ENROLLMENT':
                 if (hasAll('main menu', '1. courses', '7. exit', 'select an option')) {
                     write('3');
@@ -420,9 +396,7 @@ function advance() {
                 }
                 break;
 
-            // =========================
             // EXIT
-            // =========================
             case 'EXIT':
                 if (hasAll('enrollment menu', '1. enroll in a section', '7. exit', 'select an option')) {
                     write('5');
@@ -443,9 +417,7 @@ function advance() {
     }
 }
 
-// =========================
 // STREAM HANDLER
-// =========================
 child.stdout.on('data', (data) => {
     process.stdout.write(data);
     buffer += data;
