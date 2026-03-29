@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import app from './app.js';
 import { close } from './db/connection.js';
 
-dotenv.config();
+dotenv.config({quiet: true});
 
 const PORT = process.env.PORT || 3000;
 

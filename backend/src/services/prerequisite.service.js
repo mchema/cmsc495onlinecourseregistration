@@ -3,7 +3,7 @@ import * as Errors from '../errors/index.js';
 
 export default class PrerequisiteService {
     async getCourseByCode(courseCode) {
-        const results = await db.queryStd('SELECT course_id, course_code, title FROM courses WHERE course_code = ?', [courseCode]);
+        const results = await db.query('SELECT course_id, course_code, title FROM courses WHERE course_code = ?', [courseCode]);
 
         if (!results || results.length === 0) {
             throw new Errors.CourseNotFoundError('Invalid Course Code.');
@@ -15,7 +15,7 @@ export default class PrerequisiteService {
     async getPrerequisitesForCourse(courseCode) {
         const course = await this.getCourseByCode(courseCode);
 
-        const results = await db.queryStd('SELECT c.course_id, c.course_code, c.title FROM prerequisites p INNER JOIN courses c ON p.prerequisite_course_id = c.course_id WHERE p.course_id = ? ORDER BY c.course_code ASC', [course.course_id]);
+        const results = await db.query('SELECT c.course_id, c.course_code, c.title FROM prerequisites p INNER JOIN courses c ON p.prerequisite_course_id = c.course_id WHERE p.course_id = ? ORDER BY c.course_code ASC', [course.course_id]);
 
         return {
             course,
@@ -31,7 +31,7 @@ export default class PrerequisiteService {
             throw new Errors.InvalidSelectionError('A course cannot be a prerequisite of itself.');
         }
 
-        const existing = await db.queryStd('SELECT 1 FROM prerequisites WHERE prerequisite_course_id = ? AND course_id = ? LIMIT 1 ', [prerequisite.course_id, course.course_id]);
+        const existing = await db.query('SELECT 1 FROM prerequisites WHERE prerequisite_course_id = ? AND course_id = ? LIMIT 1 ', [prerequisite.course_id, course.course_id]);
 
         if (existing.length > 0) {
             throw new Errors.DuplicateEntryError('Prerequisite already exists.');
@@ -39,7 +39,7 @@ export default class PrerequisiteService {
 
         await this.ensureNoCycle(prerequisite.course_id, course.course_id);
 
-        await db.queryAdm('INSERT INTO prerequisites (prerequisite_course_id, course_id) VALUES (?, ?)', [prerequisite.course_id, course.course_id]);
+        await db.query('INSERT INTO prerequisites (prerequisite_course_id, course_id) VALUES (?, ?)', [prerequisite.course_id, course.course_id]);
 
         return {
             course,
@@ -51,13 +51,13 @@ export default class PrerequisiteService {
         const course = await this.getCourseByCode(courseCode);
         const prerequisite = await this.getCourseByCode(prerequisiteCourseCode);
 
-        const existing = await db.queryStd('SELECT 1 FROM prerequisites WHERE prerequisite_course_id = ? AND course_id = ? LIMIT 1', [prerequisite.course_id, course.course_id]);
+        const existing = await db.query('SELECT 1 FROM prerequisites WHERE prerequisite_course_id = ? AND course_id = ? LIMIT 1', [prerequisite.course_id, course.course_id]);
 
         if (existing.length === 0) {
             throw new Errors.InvalidSelectionError('Prerequisite not found.');
         }
 
-        await db.queryAdm('DELETE FROM prerequisites WHERE prerequisite_course_id = ? AND course_id = ?', [prerequisite.course_id, course.course_id]);
+        await db.query('DELETE FROM prerequisites WHERE prerequisite_course_id = ? AND course_id = ?', [prerequisite.course_id, course.course_id]);
 
         return {
             course,
@@ -68,7 +68,7 @@ export default class PrerequisiteService {
     async validatePrerequisiteChain(courseCode) {
         const course = await this.getCourseByCode(courseCode);
 
-        const allEdges = await db.queryStd('SELECT prerequisite_course_id, course_id FROM prerequisites', []);
+        const allEdges = await db.query('SELECT prerequisite_course_id, course_id FROM prerequisites', []);
 
         const adjacency = new Map();
 
@@ -115,7 +115,7 @@ export default class PrerequisiteService {
             };
         }
 
-        const chainDetails = chain.length <= 1 ? [] : await db.queryStd('SELECT course_id, course_code, title FROM courses WHERE course_id IN (?)', [chain.filter((id) => id !== course.course_id)]);
+        const chainDetails = chain.length <= 1 ? [] : await db.query('SELECT course_id, course_code, title FROM courses WHERE course_id IN (?)', [chain.filter((id) => id !== course.course_id)]);
 
         chainDetails.sort((a, b) => a.course_code.localeCompare(b.course_code));
 
@@ -128,7 +128,7 @@ export default class PrerequisiteService {
     }
 
     async ensureNoCycle(newPrerequisiteId, targetCourseId) {
-        const allEdges = await db.queryStd('SELECT prerequisite_course_id, course_id FROM prerequisites', []);
+        const allEdges = await db.query('SELECT prerequisite_course_id, course_id FROM prerequisites', []);
 
         const adjacency = new Map();
 

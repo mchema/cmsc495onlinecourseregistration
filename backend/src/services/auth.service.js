@@ -110,25 +110,25 @@ class AuthService {
 
     // Set Password Hash
     async setPassword(user_id, password) {
-        await db.queryAdm('UPDATE users SET password_hash = ? WHERE user_id = ?', [password, user_id]);
+        await db.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [password, user_id]);
     }
 
     // Set User Type
     async setUserType(user_id, userType) {
         if (userType === 'student') {
-            const exists = await db.queryAdm('SELECT * FROM students WHERE user_id = ?', [user_id]);
+            const exists = await db.query('SELECT * FROM students WHERE user_id = ?', [user_id]);
 
             if (exists.length > 0) {
                 throw new Errors.DuplicateEntryError('User is already a student.');
             }
-            await db.queryAdm("INSERT INTO students (user_id, major) VALUES (?, 'Computer Science')", [user_id]);
+            await db.query("INSERT INTO students (user_id, major) VALUES (?, 'Computer Science')", [user_id]);
         } else if (userType === 'professor') {
-            const exists = await db.queryAdm('SELECT * FROM professors WHERE user_id = ?', [user_id]);
+            const exists = await db.query('SELECT * FROM professors WHERE user_id = ?', [user_id]);
 
             if (exists.length > 0) {
                 throw new Errors.DuplicateEntryError('User is already a professor.');
             }
-            await db.queryAdm("INSERT INTO professors (user_id, department) VALUES (?, 'Engineering')", [user_id]);
+            await db.query("INSERT INTO professors (user_id, department) VALUES (?, 'Engineering')", [user_id]);
         } else {
             throw new Errors.ValidationError('Invalid user type. Must be "student" or "professor".');
         }
@@ -137,7 +137,7 @@ class AuthService {
     }
 
     async getUserById(user_id) {
-        const result = await db.queryStd('SELECT user_id, name, email FROM users WHERE user_id = ?', [user_id]);
+        const result = await db.query('SELECT user_id, name, email FROM users WHERE user_id = ?', [user_id]);
 
         if (result.length === 0) {
             throw new Errors.NotFoundError('User not found.');
@@ -161,7 +161,7 @@ class AuthService {
 
     async updateUserInfo(user, name, email) {
         const userID = user.getUserID();
-        await db.queryAdm('UPDATE users SET name = ?, email = ? WHERE user_id = ?', [name, email, userID]);
+        await db.query('UPDATE users SET name = ?, email = ? WHERE user_id = ?', [name, email, userID]);
     }
 }
 

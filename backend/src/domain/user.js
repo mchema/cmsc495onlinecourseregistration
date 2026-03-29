@@ -11,7 +11,7 @@ class User {
     constructor() {}
 
     async initByEmail(email) {
-        const results = await db.queryStd('SELECT user_id, name, email, password_hash FROM users WHERE email = ?', [email]);
+        const results = await db.query('SELECT user_id, name, email, password_hash FROM users WHERE email = ?', [email]);
 
         if (results.length === 0) {
             throw new Errors.AuthenticationError('Invalid email and/or password.');
@@ -22,7 +22,7 @@ class User {
     }
 
     async initByID(user_id) {
-        const results = await db.queryStd('SELECT user_id, name, email, password_hash FROM users WHERE user_id = ?', [user_id]);
+        const results = await db.query('SELECT user_id, name, email, password_hash FROM users WHERE user_id = ?', [user_id]);
 
         if (results.length === 0) {
             throw new Errors.NotFoundError('User not found.');
@@ -40,11 +40,11 @@ class User {
     }
 
     async #loadRole() {
-        const studentSearch = await db.queryStd('SELECT student_id, major FROM students WHERE user_id = ?', [this.#user_id]);
+        const studentSearch = await db.query('SELECT student_id, major FROM students WHERE user_id = ?', [this.#user_id]);
 
-        const professorSearch = await db.queryStd('SELECT professor_id, department FROM professors WHERE user_id = ?', [this.#user_id]);
+        const professorSearch = await db.query('SELECT professor_id, department FROM professors WHERE user_id = ?', [this.#user_id]);
 
-        const adminSearch = await db.queryStd('SELECT employee_id, access_level FROM admins WHERE user_id = ?', [this.#user_id]);
+        const adminSearch = await db.query('SELECT employee_id, access_level FROM admins WHERE user_id = ?', [this.#user_id]);
 
         if (studentSearch.length > 0) {
             const row = studentSearch[0];

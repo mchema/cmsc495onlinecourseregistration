@@ -5,7 +5,7 @@ class SectionService {
     constructor() {}
 
     async getSectionInfo(section_id) {
-        const results = await db.queryStd('SELECT * FROM sections WHERE section_id = ?', [section_id]);
+        const results = await db.query('SELECT * FROM sections WHERE section_id = ?', [section_id]);
 
         if (results.length === 0) {
             throw new Errors.NotFoundError('Section not found.');
@@ -15,13 +15,13 @@ class SectionService {
     }
 
     async getSectionsByCourse(course_code) {
-        const course = await db.queryStd('SELECT course_id FROM courses WHERE course_code = ?', [course_code]);
+        const course = await db.query('SELECT course_id FROM courses WHERE course_code = ?', [course_code]);
 
         if (course.length === 0) {
             throw new Errors.NotFoundError('Course not found.');
         }
 
-        const results = await db.queryStd('SELECT * FROM sections WHERE course_id = ?', [course[0].course_id]);
+        const results = await db.query('SELECT * FROM sections WHERE course_id = ?', [course[0].course_id]);
 
         return results;
     }
@@ -29,13 +29,13 @@ class SectionService {
     async getSectionsBySemester(term, year) {
         const semester_id = await this.getSemesterId(term, year);
 
-        const results = await db.queryStd('SELECT * FROM sections WHERE semester_id = ?', [semester_id]);
+        const results = await db.query('SELECT * FROM sections WHERE semester_id = ?', [semester_id]);
 
         return results;
     }
 
     async addSection(course_code, term, year, professorEmail, capacity, days, start_time, end_time) {
-        const course = await db.queryStd('SELECT course_id FROM courses WHERE course_code = ?', [course_code]);
+        const course = await db.query('SELECT course_id FROM courses WHERE course_code = ?', [course_code]);
 
         if (course.length === 0) {
             throw new Errors.NotFoundError('Course not found.');
@@ -44,12 +44,7 @@ class SectionService {
         const semester_id = await this.getSemesterId(term, year);
         const professor_id = await this.getProfessorIdByEmail(professorEmail);
 
-        await db.queryAdm(
-            `INSERT INTO sections 
-            (course_id, semester_id, professor_id, capacity, days, start_time, end_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [course[0].course_id, semester_id, professor_id, capacity, days || null, start_time, end_time]
-        );
+        await db.query('INSERT INTO sections (course_id, semester_id, professor_id, capacity, days, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?, ?)', [course[0].course_id, semester_id, professor_id, capacity, days || null, start_time, end_time]);
 
         return null;
     }
@@ -94,10 +89,10 @@ class SectionService {
             return null;
         }
 
-        const sql = `UPDATE sections SET ${fields.join(', ')} WHERE section_id = ?`;
+        const sql = 'UPDATE sections SET ' + fields.join(', ') + ' WHERE section_id = ?';
         values.push(section_id);
 
-        await db.queryAdm(sql, values);
+        await db.query(sql, values);
 
         return null;
     }
@@ -109,13 +104,13 @@ class SectionService {
             throw new Errors.NotFoundError('Section not found.');
         }
 
-        await db.queryAdm('DELETE FROM sections WHERE section_id = ?', [section_id]);
+        await db.query('DELETE FROM sections WHERE section_id = ?', [section_id]);
 
         return null;
     }
 
     async getSemesterId(term, year) {
-        const result = await db.queryStd('SELECT semester_id FROM semesters WHERE term = ? AND year = ?', [term, year]);
+        const result = await db.query('SELECT semester_id FROM semesters WHERE term = ? AND year = ?', [term, year]);
 
         if (result.length === 0) {
             throw new Errors.NotFoundError('Semester not found.');
@@ -125,13 +120,13 @@ class SectionService {
     }
 
     async getProfessorIdByEmail(email) {
-        const user = await db.queryStd('SELECT user_id FROM users WHERE email = ?', [email]);
+        const user = await db.query('SELECT user_id FROM users WHERE email = ?', [email]);
 
         if (user.length === 0) {
             throw new Errors.NotFoundError('User not found.');
         }
 
-        const professor = await db.queryStd('SELECT professor_id FROM professors WHERE user_id = ?', [user[0].user_id]);
+        const professor = await db.query('SELECT professor_id FROM professors WHERE user_id = ?', [user[0].user_id]);
 
         if (professor.length === 0) {
             throw new Errors.NotFoundError('User is not a professor.');
@@ -141,7 +136,7 @@ class SectionService {
     }
 
     async sectionExists(section_id) {
-        const result = await db.queryStd('SELECT section_id FROM sections WHERE section_id = ?', [section_id]);
+        const result = await db.query('SELECT section_id FROM sections WHERE section_id = ?', [section_id]);
 
         return result.length > 0;
     }

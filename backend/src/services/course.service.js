@@ -21,7 +21,7 @@ class CourseService {
 
     // Initializes all courses in the database into memory, used on first startup of the application to cache frequently accessed items.
     async init() {
-        const result = await db.queryStd('SELECT * FROM courses', []);
+        const result = await db.query('SELECT * FROM courses', []);
 
         for (const row of result) {
             const course = new Course(row.course_id);
@@ -67,7 +67,7 @@ class CourseService {
         const description = courseData.description;
         const credits = courseData.credits;
 
-        const result = await db.queryAdm(
+        const result = await db.query(
             'INSERT INTO courses (course_code, title, description, credits) VALUES (?, ?, ?, ?)',
             [course_code, title, description, credits]
         );
@@ -77,7 +77,7 @@ class CourseService {
     }
 
     async removeCourse(course_code) {
-        const result = await db.queryAdm('DELETE FROM courses WHERE course_code = ?', [
+        const result = await db.query('DELETE FROM courses WHERE course_code = ?', [
             course_code,
         ]);
         this.refresh();
@@ -86,7 +86,7 @@ class CourseService {
     }
 
     async updateCourse(course_code, title, description, credits) {
-        const result = await db.queryAdm(
+        const result = await db.query(
             'UPDATE courses SET title = ?, description = ?, credits = ? WHERE course_code = ?',
             [title, description, credits, course_code]
         );

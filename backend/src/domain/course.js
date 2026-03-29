@@ -10,7 +10,7 @@ class Course {
     }
 
     async init() {
-        const results = await db.queryStd(
+        const results = await db.query(
             'SELECT course_code, title, description, credits FROM courses WHERE course_id = ?',
             [this.course_id],
             (result) => {
