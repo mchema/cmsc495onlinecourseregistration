@@ -4,7 +4,7 @@ import cors from 'cors';
 import morgan from 'morgan';
 
 import authRoutes from './api/routes/auth.routes.js';
-//import courseRoutes from './api/routes/course.routes.js';
+import courseRoutes from './api/routes/course.routes.js';
 //import enrollmentRoutes from './api/routes/enrollment.routes.js';
 //import prerequisiteRoutes from './api/routes/prerequisite.routes.js';
 //import sectionRoutes from './api/routes/section.routes.js';
@@ -24,7 +24,7 @@ app.get('/api/health', (req, res) => {
 
 // Route Mounting
 app.use('/api/auth', authRoutes);
-//app.use('/api/courses', courseRoutes);
+app.use('/api/courses', courseRoutes);
 //app.use('/api/enrollments', enrollmentRoutes);
 //app.use('/api/prerequisites', prerequisiteRoutes);
 //app.use('/api/sections', sectionRoutes);

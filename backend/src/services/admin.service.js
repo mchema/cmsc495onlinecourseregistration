@@ -1,55 +1,78 @@
 import * as db from '../db/connection.js';
 import * as Errors from '../errors/index.js';
 import User from '../domain/user.js';
+import bcrypt from 'bcrypt';
+
+const saltRounds = 10;
 
 class AdminService {
     constructor() {}
 
     // Add New User
-    async addUser(name, email, password) {
-        const existing = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+    async addUser(name, email, roleDetails, userType) {
+        const existingCount = await db.query('SELECT COUNT(*) AS count FROM users WHERE email = ?', [email]);
+        const count = existingCount[0].count;
 
-        if (existing.length > 0) {
+        if (count > 0) {
             throw new Errors.DuplicateEntryError('User with this email already exists.');
         }
 
-        await db.query('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)', [name, email, password]);
+        const passwordString = name + email;
+        const password = await bcrypt.hash(passwordString, saltRounds);
+
+        const result = await db.query('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)', [name, email, password]);
+
+        const newId = result.insertId;
+
+        await this.setUserRole(newId, roleDetails, userType);
     }
 
     // Remove User
-    async removeUser(user_id) {
-        const existing = await db.query('SELECT user_id FROM users WHERE user_id = ?', [user_id]);
+    async removeUser(id) {
+        const existingCount = await db.query('SELECT COUNT(*) AS count FROM users WHERE user_id = ?', [id]);
+        const count = existingCount[0].count;
 
-        if (existing.length === 0) {
+        if (count === 0) {
             throw new Errors.NotFoundError('User not found.');
         }
 
-        await db.query('DELETE FROM users WHERE user_id = ?', [user_id]);
+        await db.query('DELETE FROM users WHERE user_id = ?', [id]);
     }
 
     // Set User Type
-    async setUserRole(user_id, userType) {
+    async setUserRole(id, roleDetails, userType) {
         const normalizedUserType = String(userType).toLowerCase();
-        const user = await this.getUserById(user_id);
 
-        if (normalizedUserType === 'student') {
-            const exists = await db.query('SELECT * FROM students WHERE user_id = ?', [user.user_id]);
+        if (normalizedUserType === 'admin') {
+            const exists = await db.query('SELECT * FROM admins WHERE user_id = ?', [id]);
 
             if (exists.length > 0) {
-                throw new Errors.DuplicateEntryError('User is already a student.');
+                throw new Errors.DuplicateEntryError('User is already an admin.');
             }
 
-            await db.query("INSERT INTO students (user_id, major) VALUES (?, 'Computer Science')", [user.user_id]);
+            const result = await db.query('INSERT INTO admins (user_id, access_level) VALUES (?, ?)', [id, roleDetails]);
+            return result.insertId;
         } else if (normalizedUserType === 'professor') {
-            const exists = await db.query('SELECT * FROM professors WHERE user_id = ?', [user.user_id]);
+            const exists = await db.query('SELECT * FROM professors WHERE user_id = ?', [id]);
 
             if (exists.length > 0) {
                 throw new Errors.DuplicateEntryError('User is already a professor.');
             }
 
-            await db.query("INSERT INTO professors (user_id, department) VALUES (?, 'Engineering')", [user.user_id]);
+            const result = await db.query('INSERT INTO professors (user_id, department) VALUES (?, ?)', [id, roleDetails]);
+            return result.insertId;
+        } else if (normalizedUserType === 'student') {
+            const existingCount = await db.query('SELECT COUNT(*) AS count FROM students WHERE user_id = ?', [id]);
+            const count = existingCount[0].count;
+
+            if (count > 0) {
+                throw new Errors.DuplicateEntryError('User is already a student.');
+            }
+
+            const result = await db.query('INSERT INTO students (user_id, major) VALUES (?, ?)', [id, roleDetails]);
+            return result.insertId;
         } else {
-            throw new Errors.ValidationError('Invalid user type. Must be "student" or "professor".');
+            throw new Errors.ValidationError('Invalid user type.');
         }
     }
 

@@ -1,148 +1,180 @@
-import * as db from '../db/connection.js';
 import * as Errors from '../errors/index.js';
 
 class User {
-    #user_id;
+    #id;
     #name;
     #email;
     #password_hash;
-    #role = null;
+    #first_login;
+    #role;
+    #role_id;
+    #role_details;
 
-    constructor() {}
-
-    async initByEmail(email) {
-        const results = await db.query('SELECT user_id, name, email, password_hash FROM users WHERE email = ?', [email]);
-
-        if (results.length === 0) {
-            throw new Errors.AuthenticationError('Invalid email and/or password.');
-        }
-
-        await this.#hydrateBaseUser(results[0]);
-        await this.#loadRole();
+    // Default Constructor
+    constructor({ id, name, email, password_hash = null, first_login, role = null, role_id = null, role_details = null }) {
+        this.#id = id;
+        this.#name = name;
+        this.#email = email;
+        this.#password_hash = password_hash;
+        this.#first_login = first_login;
+        this.#role = role;
+        this.#role_id = role_id;
+        this.#role_details = role_details;
     }
 
-    async initByID(user_id) {
-        const results = await db.query('SELECT user_id, name, email, password_hash FROM users WHERE user_id = ?', [user_id]);
-
-        if (results.length === 0) {
-            throw new Errors.NotFoundError('User not found.');
+    // Constructs a User instance from a raw database result row.
+    static fromPersistence(row) {
+        if (!row) {
+            throw new Errors.ValidationError('Row cannot be empty.');
         }
 
-        await this.#hydrateBaseUser(results[0]);
-        await this.#loadRole();
+        const user = new User({
+            id: row.user_id,
+            name: row.name,
+            email: row.email,
+            password_hash: row.password_hash ?? null,
+            first_login: row.first_login,
+            role: row.role ?? null,
+            role_id: row.role_id ?? null,
+            role_details: row.role_details ?? null,
+        });
+
+        return user;
     }
 
-    async #hydrateBaseUser(row) {
-        this.#user_id = row.user_id;
-        this.#name = row.name;
-        this.#email = row.email;
-        this.#password_hash = row.password_hash;
-    }
-
-    async #loadRole() {
-        const studentSearch = await db.query('SELECT student_id, major FROM students WHERE user_id = ?', [this.#user_id]);
-
-        const professorSearch = await db.query('SELECT professor_id, department FROM professors WHERE user_id = ?', [this.#user_id]);
-
-        const adminSearch = await db.query('SELECT employee_id, access_level FROM admins WHERE user_id = ?', [this.#user_id]);
-
-        if (studentSearch.length > 0) {
-            const row = studentSearch[0];
-            this.#role = {
-                role: 'STUDENT',
-                role_id: row.student_id,
-                role_attribute: row.major,
-            };
-            return;
+    // Constructs a User instance from a sanitized object (No password_hash or first_login);
+    static fromSafeObject(data) {
+        if (!data) {
+            throw new Errors.ValidationError('Object data is required.');
         }
 
-        if (professorSearch.length > 0) {
-            const row = professorSearch[0];
-            this.#role = {
-                role: 'PROFESSOR',
-                role_id: row.professor_id,
-                role_attribute: row.department,
-            };
-            return;
-        }
-
-        if (adminSearch.length > 0) {
-            const row = adminSearch[0];
-            this.#role = {
-                role: 'ADMIN',
-                role_id: row.employee_id,
-                role_attribute: row.access_level,
-            };
-            return;
-        }
-
-        this.#role = {
-            role: null,
-            role_id: null,
-            role_attribute: null,
-        };
+        return new User({
+            id: data.id,
+            name: data.name,
+            email: data.email,
+            role: data.role ?? null,
+            role_id: data.role_id ?? null,
+            role_details: data.role_details ?? null,
+        });
     }
 
-    async refresh() {
-        if (!this.#user_id) {
-            throw new Errors.ValidationError('Cannot refresh user before initialization.');
-        }
-
-        await this.initByID(this.#user_id);
-    }
-
-    compareUser(user) {
-        return JSON.stringify(this.getInternalUserInfo()) === JSON.stringify(user.getInternalUserInfo());
-    }
-
+    // Get User ID
     getUserID() {
-        return this.#user_id;
+        return this.#id;
     }
 
+    // Get User Name
     getName() {
         return this.#name;
     }
 
+    // Get User Email
     getEmail() {
         return this.#email;
     }
 
+    // Get User Password Hash
     getPasswordHash() {
         return this.#password_hash;
     }
 
+    // Get User First Login Status
+    getFirstLogin() {
+        return this.#first_login === 1;
+    }
+
+    // Get User Role
     getRole() {
-        return this.#role?.role ?? null;
+        return this.#role;
     }
 
+    // Get User Role ID
     getRoleID() {
-        return this.#role?.role_id ?? null;
+        return this.#role_id;
     }
 
-    getRoleAttribute() {
-        return this.#role?.role_attribute ?? null;
+    // Get user Role Details
+    getRoleDetails() {
+        return this.#role_details;
     }
 
-    getSafeUserInfo() {
+    // Returns whether the User has a role (boolean)
+    hasRole() {
+        return this.#role !== null;
+    }
+
+    // Returns whether the User is a student (boolean)
+    isStudent() {
+        return this.#role === 'STUDENT';
+    }
+
+    // Returns whether the User is a professor (boolean)
+    isProfessor() {
+        return this.#role === 'PROFESSOR';
+    }
+
+    // Returns whether the User is an admin (boolean)
+    isAdmin() {
+        return this.#role === 'ADMIN';
+    }
+
+    // Returns whether the User instance has the same id as the input user object (boolean)
+    hasSameIdentityAs(otherUser) {
+        if (!(otherUser instanceof User)) {
+            return false;
+        }
+
+        return this.#id === otherUser.getUserID();
+    }
+
+    // Creates a new User instance with updated role-related info while preserving all other properties
+    withRole({ role, role_id = null, role_details = null }) {
+        return new User({
+            id: this.#id,
+            name: this.#name,
+            email: this.#email,
+            password_hash: this.#password_hash,
+            role,
+            role_id,
+            role_details,
+        });
+    }
+
+    // Creates a new User instance with the Password Hash and first_login removed
+    withoutPasswordHash() {
+        return new User({
+            id: this.#id,
+            name: this.#name,
+            email: this.#email,
+            role: this.#role,
+            role_id: this.#role_id,
+            role_details: this.#role_details,
+        });
+    }
+
+    // Produces a sanitized representation of the user (public use)
+    toSafeObject() {
         return {
-            user_id: this.getUserID(),
-            name: this.getName(),
-            email: this.getEmail(),
-            role: this.getRole(),
-            role_id: this.getRoleID(),
-            role_attribute: this.getRoleAttribute(),
+            id: this.#id,
+            name: this.#name,
+            email: this.#email,
+            role: this.#role,
+            role_id: this.#role_id,
+            role_details: this.#role_details,
         };
     }
 
-    getInternalUserInfo() {
+    // Produces a full representation of the user including sensitive fields (internal use)
+    toPersistenceObject() {
         return {
-            user_id: this.getUserID(),
-            name: this.getName(),
-            email: this.getEmail(),
-            password_hash: this.getPasswordHash(),
-            role: this.getRole(),
-            role_id: this.getRoleID(),
-            role_attribute: this.getRoleAttribute(),
+            id: this.#id,
+            name: this.#name,
+            email: this.#email,
+            password_hash: this.#password_hash,
+            first_login: this.#first_login,
+            role: this.#role,
+            role_id: this.#role_id,
+            role_details: this.#role_details,
         };
     }
 }

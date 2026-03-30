@@ -19,54 +19,52 @@ class AuthService {
 
     // Initialize User
     async loginUser(email, password) {
-        const user = new User();
-        await user.initByEmail(email);
+        const rows = await db.query('SELECT user_id, name, email, password_hash, first_login FROM users WHERE email = ?', [email]);
 
-        const isFirstLogin = this.isFirstLoginUser(user);
-
-        if (isFirstLogin) {
-            if (password !== 'Password') {
-                throw new Errors.AuthenticationError('Invalid email and/or password.');
-            }
-
-            return {
-                user,
-                firstLogin: true,
-            };
+        if (rows.length === 0) {
+            throw new Errors.AuthenticationError('Invalid email and/or password.');
         }
+
+        const user = User.fromPersistence(rows[0]);
+        const safeUser = user.withoutPasswordHash();
+        const roleUser = await this.getCurrentUserInfo(safeUser.toSafeObject());
 
         const passwordCheck = await bcrypt.compare(password, user.getPasswordHash());
 
         if (passwordCheck === false) {
             throw new Errors.AuthenticationError('Invalid email and/or password.');
         }
+ 
+        const isFirstLogin = user.getFirstLogin();
 
+        if (isFirstLogin === true) {
+            return {
+                user: roleUser,
+                firstLogin: isFirstLogin,
+            };
+        }
         return {
-            user,
-            firstLogin: false,
+            user: roleUser,
+            firstLogin: isFirstLogin,
         };
     }
 
     // Check for First Time Login
     isFirstLoginUser(user) {
-        return user.getPasswordHash() === 'Password';
+        return user.getFirstLogin() === true;
     }
 
     // Change Password enforces Password Policy, Hashing, and persistence
-    async changePassword(authUser, password) {
-        const userID = authUser?.id;
-
-        if (!userID) {
+    async changePassword(authUser = null, password) {
+        if (authUser === null) {
             throw new Errors.AuthenticationError('Authentication required.');
         }
+        this.validatePasswordPolicy(password, authUser);
 
-        const user = new User();
-        await user.initByID(userID);
-
-        this.validatePasswordPolicy(password, user);
+        console.log(password);
 
         const hash = await bcrypt.hash(password, saltRounds);
-        await this.setPassword(user.getUserID(), hash);
+        await this.setPassword(authUser.id, hash);
     }
 
     validatePasswordPolicy(password, user = null) {
@@ -99,7 +97,7 @@ class AuthService {
         }
 
         if (user) {
-            const email = user.getEmail?.()?.toLowerCase() ?? '';
+            const email = user.email?.toLowerCase() ?? '';
             const localPart = email.split('@')[0] ?? '';
 
             if (localPart && password.toLowerCase().includes(localPart)) {
@@ -108,60 +106,50 @@ class AuthService {
         }
     }
 
-    // Set Password Hash
-    async setPassword(user_id, password) {
-        await db.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [password, user_id]);
+    // Set Password in Database
+    async setPassword(id, password) {
+        await db.query('UPDATE users SET password_hash = ?, first_login = ? WHERE user_id = ?', [password, false, id]);
     }
 
-    // Set User Type
-    async setUserType(user_id, userType) {
-        if (userType === 'student') {
-            const exists = await db.query('SELECT * FROM students WHERE user_id = ?', [user_id]);
+    // Get User Type
+    async updateUserType(user) {
+        const id = user.getUserID();
 
-            if (exists.length > 0) {
-                throw new Errors.DuplicateEntryError('User is already a student.');
-            }
-            await db.query("INSERT INTO students (user_id, major) VALUES (?, 'Computer Science')", [user_id]);
-        } else if (userType === 'professor') {
-            const exists = await db.query('SELECT * FROM professors WHERE user_id = ?', [user_id]);
+        const existsStudent = await db.query('SELECT student_id, major FROM students WHERE user_id = ?', [id]);
+        const existsProfessor = await db.query('SELECT professor_id, department FROM professors WHERE user_id = ?', [id]);
+        const existsAdmin = await db.query('SELECT employee_id, access_level FROM admins WHERE user_id = ?', [id]);
 
-            if (exists.length > 0) {
-                throw new Errors.DuplicateEntryError('User is already a professor.');
-            }
-            await db.query("INSERT INTO professors (user_id, department) VALUES (?, 'Engineering')", [user_id]);
-        } else {
-            throw new Errors.ValidationError('Invalid user type. Must be "student" or "professor".');
+        if (existsAdmin.length > 0) {
+            return { role: 'ADMIN', role_id: existsAdmin[0].employee_id, role_details: existsAdmin[0].access_level };
         }
 
-        return null;
-    }
-
-    async getUserById(user_id) {
-        const result = await db.query('SELECT user_id, name, email FROM users WHERE user_id = ?', [user_id]);
-
-        if (result.length === 0) {
-            throw new Errors.NotFoundError('User not found.');
+        if (existsProfessor.length > 0) {
+            return { role: 'PROFESSOR', role_id: existsProfessor[0].professor_id, role_details: existsProfessor[0].department };
         }
 
-        return result[0];
+        if (existsStudent.length > 0) {
+            return { role: 'STUDENT', role_id: existsStudent[0].student_id, role_details: existsStudent[0].major };
+        }
+
+        throw new Errors.NotFoundError('User does not have an assigned role type.');
     }
 
     async getCurrentUserInfo(authUser) {
-        const userID = authUser?.id;
-
-        if (!userID) {
+        if (!authUser) {
             throw new Errors.AuthenticationError('Authentication required.');
         }
 
-        const user = new User();
-        await user.initByID(userID);
+        const rows = await db.query('SELECT user_id, name, email, password_hash, first_login FROM users WHERE user_id = ?', [authUser.id]);
+        const user = User.fromPersistence(rows[0]);
 
-        return user.getSafeUserInfo();
+        const roleRows = await this.updateUserType(user);
+        const roleUser = user.withRole(roleRows);
+
+        return roleUser;
     }
 
     async updateUserInfo(user, name, email) {
-        const userID = user.getUserID();
-        await db.query('UPDATE users SET name = ?, email = ? WHERE user_id = ?', [name, email, userID]);
+        await db.query('UPDATE users SET name = ?, email = ? WHERE user_id = ?', [name, email, user.user_id]);
     }
 }
 

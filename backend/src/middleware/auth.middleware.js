@@ -1,5 +1,4 @@
 import jwt from 'jsonwebtoken';
-import User from '../domain/user.js';
 
 function authMiddleware(req, res, next) {
     try {
@@ -23,15 +22,22 @@ function authMiddleware(req, res, next) {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
         req.user = {
-            id: decoded.id,
-            email: decoded.email,
-            role: decoded.role,
+            id: decoded.user.id,
+            name: decoded.user.name,
+            email: decoded.user.email,
+            role: decoded.user.role,
+            role_id: decoded.user.role_id,
+            role_details: decoded.user.role_details,
+        };
+
+        req.firstLogin = {
+            firstLogin: decoded.firstLogin,
         };
 
         next();
     } catch (err) {
         return res.status(401).json({
-            error: 'Invalid or expired token.',
+            error: 'Invalid or expired token.' + err,
         });
     }
 }
@@ -47,12 +53,7 @@ function firstLoginMiddleware(options = {}) {
                 });
             }
 
-            const user = new User();
-            await user.initByID(req.user.id);
-
-            const isFirstLogin = user.getPasswordHash() === 'Password';
-
-            if (!isFirstLogin) {
+            if (req.firstLogin) {
                 return next();
             }
 

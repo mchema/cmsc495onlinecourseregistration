@@ -10,6 +10,7 @@ class AuthController {
         this.logout = this.logout.bind(this);
         this.getCurrentUser = this.getCurrentUser.bind(this);
         this.changePassword = this.changePassword.bind(this);
+        this.updateUserInfo = this.updateUserInfo.bind(this);
     }
 
     // Express Login Method
@@ -29,9 +30,8 @@ class AuthController {
 
             const token = jwt.sign(
                 {
-                    id: user.getUserID(),
-                    email: user.getEmail(),
-                    role: user.getRole() ?? null,
+                    user: user.toSafeObject() ?? null,
+                    firstLogin: user.getFirstLogin(),
                 },
                 process.env.JWT_SECRET,
                 {
@@ -43,7 +43,7 @@ class AuthController {
                 message: 'Login Successful',
                 firstLogin: result.firstLogin,
                 token,
-                user: result.user.getSafeUserInfo(),
+                user: result.user.toSafeObject(),
             });
         } catch (err) {
             next(err);
@@ -65,9 +65,10 @@ class AuthController {
     async getCurrentUser(req, res, next) {
         try {
             const userInfo = await this.authService.getCurrentUserInfo(req.user);
+            const user = userInfo.toSafeObject();
 
             return res.status(200).json({
-                user: userInfo,
+                user: user,
             });
         } catch (err) {
             next(err);
@@ -107,6 +108,27 @@ class AuthController {
 
             return res.status(200).json({
                 message: 'Password changed successfully.',
+            });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    // Express Update User Info
+    async updateUserInfo(req, res, next) {
+        try {
+            const { user, name, email } = req.body;
+
+            if (!user || !name || !email) {
+                return res.status(400).json({
+                    error: 'Missing fields are required.',
+                });
+            }
+
+            await this.authService.updateUserInfo(user, name, email);
+
+            return res.status(200).json({
+                message: 'Updated user Info successfully.',
             });
         } catch (err) {
             next(err);

@@ -9,113 +9,75 @@
 
 import * as db from '../db/connection.js';
 import Course from '../domain/course.js';
+import * as Errors from '../errors/index.js';
 
 class CourseService {
-    #course_map;
-    numCourses;
+    constructor() {}
 
-    // Constructor initializes the Map
-    constructor() {
-        this.#course_map = new Map();
-    }
+    async getCourseInfo(courseId) {
+        const rows = await db.query('SELECT course_id, course_code, title, description, credits FROM courses WHERE course_id = ?', [courseId]);
 
-    // Initializes all courses in the database into memory, used on first startup of the application to cache frequently accessed items.
-    async init() {
-        const result = await db.query('SELECT * FROM courses', []);
-
-        for (const row of result) {
-            const course = new Course(row.course_id);
-            await course.init();
-            this.#course_map.set(course.course_code, course);
-        }
-    }
-
-    // ****** Courses ******
-
-    // Gets course information from memory
-    getCourseInfo(course_code) {
-        const course = this.#course_map.get(course_code);
-
-        if (!course) {
-            return console.log('Course not found.');
+        if (rows.length === 0) {
+            throw new Errors.NotFoundError('Course not found.');
         }
 
-        return [course.course_id, course_code, course.title, course.description, course.credits];
+        return Course.fromPersistence(rows[0]);
     }
-
-    getCourseID(course_code) {
-        return this.getCourseInfo(course_code)[0];
-    }
-
-    getCourseTitle(course_code) {
-        return this.getCourseInfo(course_code)[2];
-    }
-
-    getCourseDescription(course_code) {
-        return this.getCourseInfo(course_code)[3];
-    }
-
-    getCourseCredits(course_code) {
-        return this.getCourseInfo(course_code)[4];
-    }
-
-    // Add Courses
 
     async addNewCourse(courseData) {
-        const course_code = courseData.course_code;
-        const title = courseData.title;
-        const description = courseData.description;
-        const credits = courseData.credits;
+        const { course_code, title, description, credits } = courseData;
 
-        const result = await db.query(
-            'INSERT INTO courses (course_code, title, description, credits) VALUES (?, ?, ?, ?)',
-            [course_code, title, description, credits]
-        );
-        this.refresh();
+        const existing = await db.query('SELECT COUNT(*) AS count FROM courses WHERE course_code = ?', [course_code]);
 
-        return result;
-    }
-
-    async removeCourse(course_code) {
-        const result = await db.query('DELETE FROM courses WHERE course_code = ?', [
-            course_code,
-        ]);
-        this.refresh();
-
-        return result;
-    }
-
-    async updateCourse(course_code, title, description, credits) {
-        const result = await db.query(
-            'UPDATE courses SET title = ?, description = ?, credits = ? WHERE course_code = ?',
-            [title, description, credits, course_code]
-        );
-        this.refresh();
-        return result;
-    }
-
-    // ****** Sections ******
-
-    // Create new section
-    async createSection(
-        course_id,
-        semester_id,
-        professor_id,
-        capacity,
-        days,
-        start_time,
-        end_time
-    ) {
-        try {
-            console.log(course_id, semester_id, professor_id, capacity, days, start_time, end_time);
-        } catch (err) {
-            console.error(err);
+        if (existing[0].count > 0) {
+            throw new Errors.DuplicateEntryError('Course with this course code already exists.');
         }
+
+        const result = await db.query('INSERT INTO courses (course_code, title, description, credits) VALUES (?, ?, ?, ?)', [course_code, title, description, credits]);
+
+        const rows = await db.query('SELECT course_id, course_code, title, description, credits FROM courses WHERE course_id = ?', [result.insertId]);
+
+        if (rows.length === 0) {
+            throw new Errors.DatabaseError('Failed to retrieve newly created course.');
+        }
+
+        return Course.fromPersistence(rows[0]);
     }
 
-    async refresh() {
-        this.#course_map.clear();
-        await this.init();
+    async updateCourse(courseId, courseData) {
+        const { course_code, title, description, credits } = courseData;
+
+        const existing = await db.query('SELECT COUNT(*) AS count FROM courses WHERE course_id = ?', [courseId]);
+
+        if (existing[0].count === 0) {
+            throw new Errors.NotFoundError('Course not found.');
+        }
+
+        const duplicate = await db.query('SELECT COUNT(*) AS count FROM courses WHERE course_code = ? AND course_id <> ?', [course_code, courseId]);
+
+        if (duplicate[0].count > 0) {
+            throw new Errors.DuplicateEntryError('Course with this course code already exists.');
+        }
+
+        await db.query('UPDATE courses SET course_code = ?, title = ?, description = ?, credits = ? WHERE course_id = ?', [course_code, title, description, credits, courseId]);
+
+        const rows = await db.query('SELECT course_id, course_code, title, description, credits FROM courses WHERE course_id = ?', [courseId]);
+
+        if (rows.length === 0) {
+            throw new Errors.DatabaseError('Failed to retrieve updated course.');
+        }
+
+        return Course.fromPersistence(rows[0]);
+    }
+
+    async removeCourse(courseId) {
+        const existing = await db.query('SELECT COUNT(*) AS count FROM courses WHERE course_id = ?', [courseId]);
+
+        if (existing[0].count === 0) {
+            throw new Errors.NotFoundError('Course not found.');
+        }
+
+        await db.query('DELETE FROM courses WHERE course_id = ?', [courseId]);
     }
 }
 

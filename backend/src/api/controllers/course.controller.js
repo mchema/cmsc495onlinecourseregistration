@@ -1,92 +1,109 @@
-// Given the current STATE, direct the call from COURSES_MENU to the appropriate service call.
-
-//import * as readline from 'node:readline/promises';
-//import { stdin as input, stdout as output } from 'node:process';
+import CourseService from '../../services/course.service.js';
 
 class CourseController {
-    prompt;
+    constructor() {
+        this.courseService = new CourseService();
 
-    constructor(prompt, cs) {
-        this.prompt = prompt;
-        this.cs = cs;
+        this.getCourseInfo = this.getCourseInfo.bind(this);
+        this.addNewCourse = this.addNewCourse.bind(this);
+        this.updateCourse = this.updateCourse.bind(this);
+        this.removeCourse = this.removeCourse.bind(this);
     }
 
-    // Get Course Info
-    async getCourseInfo() {
-        const selection = await this.prompt.askCourseCode('Please enter the Course Code: ');
+    async getCourseInfo(req, res, next) {
         try {
-            console.log(this.cs.getCourseInfo(selection));
-        } catch (err) {
-            console.error('Invalid course code! Error Code: ', err)
-        }
-    }
+            const { courseId } = req.params;
 
-    // Add New Course
-    async addNewCourse() {
-        const ccr = await this.prompt.askCourseCode('Please enter the Course Code: ');
-        const cct = await this.prompt.askRequiredText('Please enter the Course Title: ');
-        const ccd = await this.prompt.askRequiredText('Please enter the Course Description: ');
-        const ccc = await this.prompt.askInt('Please enter the Course Credits: ');
-        var courseData = {
-            course_code: ccr,
-            title: cct,
-            description: ccd,
-            credits: ccc,
-        };
-
-        try {
-            await this.cs.addNewCourse(courseData);
-            await this.cs.refresh();
-            console.log('\n\n\nCourse successfully added!\n\n\n');
-        } catch (err) {
-            console.error(err);
-        }
-    }
-
-    // Update Existing Course
-    async updateCourse() {
-        const selection = await this.prompt.askCourseCode('Please enter the Course Code: ');
-
-        const changeSelection = (
-            await this.prompt.askMenuSelection(
-                'What would you like to change?\n1. Course Title\n2. Course Description\n3. Course Credits\n\n\nEnter all numbers you wish to change: '
-            )
-        ).trim();
-
-        let bool = false;
-        let cct = this.cs.getCourseTitle(selection);
-        let ccd = this.cs.getCourseDescription(selection);
-        let ccc = this.cs.getCourseCredits(selection);
-        for (let char of changeSelection) {
-            if (char == '1') {
-                cct = await this.prompt.askRequiredText('Please enter the Course Title: ');
-                bool = true;
-            } else if (char == '2') {
-                ccd = await this.prompt.askRequiredText('Please enter the Course Description: ');
-                bool = true;
-            } else if (char == '3') {
-                ccc = await this.prompt.askInt('Please enter the Course Credits: ');
-                bool = true;
+            if (!courseId || Number.isNaN(courseId)) {
+                return res.status(400).json({
+                    error: 'Valid course ID is required.',
+                });
             }
 
-            if (bool === true) {
-                // Update information
-                await this.cs.updateCourse(selection, cct, ccd, ccc);
-            }
+            const course = await this.courseService.getCourseInfo(courseId);
 
-            bool = false;
+            return res.status(200).json(course.toObject());
+        } catch (err) {
+            next(err);
         }
     }
 
-    // Remove an Existing Course
-    async removeCourse() {
-        const selection = await this.prompt.askCourseCode('Please enter the Course Code: ');
-
+    async addNewCourse(req, res, next) {
         try {
-            await this.cs.removeCourse(selection);
-            console.log('\n\n\nCourse successfully removed!\n\n\n');
+            const { courseCode, courseTitle, courseDescription, courseCredits } = req.body;
+
+            if (!courseCode || !courseTitle || !courseDescription || courseCredits == null || Number.isNaN(courseCredits)) {
+                return res.status(400).json({
+                    error: 'Course code, title, description, and numeric credits are required.',
+                });
+            }
+
+            const course = await this.courseService.addNewCourse({
+                course_code: courseCode,
+                title: courseTitle,
+                description: courseDescription,
+                credits: courseCredits,
+            });
+
+            return res.status(201).json({
+                message: 'Course added successfully.',
+                course: course.toObject(),
+            });
         } catch (err) {
-            console.error(err);
+            next(err);
+        }
+    }
+
+    async updateCourse(req, res, next) {
+        try {
+            const { courseId } = req.params;
+            const { courseCode, courseTitle, courseDescription, courseCredits } = req.body;
+
+            if (!courseId || Number.isNaN(courseId)) {
+                return res.status(400).json({
+                    error: 'Valid course ID is required.',
+                });
+            }
+
+            if (!courseCode || !courseTitle || !courseDescription || courseCredits == null || Number.isNaN(courseCredits)) {
+                return res.status(400).json({
+                    error: 'Course code, title, description, and numeric credits are required.',
+                });
+            }
+
+            const course = await this.courseService.updateCourse(courseId, {
+                course_code: courseCode,
+                title: courseTitle,
+                description: courseDescription,
+                credits: courseCredits,
+            });
+
+            return res.status(200).json({
+                message: 'Course updated successfully.',
+                course: course.toObject(),
+            });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async removeCourse(req, res, next) {
+        try {
+            const { courseId } = req.params;
+
+            if (!courseId || Number.isNaN(courseId)) {
+                return res.status(400).json({
+                    error: 'Valid course ID is required.',
+                });
+            }
+
+            await this.courseService.removeCourse(Number(courseId));
+
+            return res.status(200).json({
+                message: 'Course deleted successfully.',
+            });
+        } catch (err) {
+            next(err);
         }
     }
 }

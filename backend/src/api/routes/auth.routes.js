@@ -12,5 +12,6 @@ router.post('/login', authController.login);
 router.post('/logout', authMiddleware, firstLoginMiddleware(), authController.logout);
 router.get('/me', authMiddleware, firstLoginMiddleware(), authController.getCurrentUser);
 router.post('/change-password', authMiddleware, firstLoginMiddleware(), authController.changePassword);
+router.post('/update-user', authMiddleware, firstLoginMiddleware(), authController.updateUserInfo);
 
 export default router;

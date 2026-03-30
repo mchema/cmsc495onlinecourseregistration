@@ -2,7 +2,7 @@ import AdminService from '../../services/admin.service.js';
 
 class AdminController {
     constructor() {
-        this.authService = new AdminService();
+        this.adminService = new AdminService();
 
         this.addUser = this.addUser.bind(this);
         this.removeUser = this.removeUser.bind(this);
@@ -14,16 +14,15 @@ class AdminController {
     // Add New User
     async addUser(req, res, next) {
         try {
-            const { name, email } = req.body;
-            const password = 'Password';
+            const { name, email, roleDetails, userType } = req.body;
 
             if (!name || !email) {
                 return res.status(400).json({
-                    error: 'Name and email are required.',
+                    error: 'Name, email, and roleType are required.',
                 });
             }
 
-            await this.authService.addUser(name, email, password);
+            await this.adminService.addUser(name, email, roleDetails, userType);
 
             return res.status(201).json({
                 message: 'User created successfully.',
@@ -44,7 +43,7 @@ class AdminController {
                 });
             }
 
-            await this.authService.removeUser(Number(id));
+            await this.adminService.removeUser(Number(id));
 
             return res.status(200).json({
                 message: 'User removed successfully.',
@@ -58,7 +57,7 @@ class AdminController {
     async setUserRole(req, res, next) {
         try {
             const { id } = req.params;
-            const { userType } = req.body;
+            const { userType, roleDetails } = req.body;
 
             if (!id || Number.isNaN(Number(id))) {
                 return res.status(400).json({
@@ -72,7 +71,7 @@ class AdminController {
                 });
             }
 
-            await this.authService.setUserRole(Number(id), userType);
+            await this.adminService.setUserRole(id, roleDetails, userType);
 
             return res.status(200).json({
                 message: 'User role updated successfully.',
@@ -85,7 +84,7 @@ class AdminController {
     // View All Users
     async getAllUsers(req, res, next) {
         try {
-            const users = await this.authService.getAllUsers();
+            const users = await this.adminService.getAllUsers();
 
             return res.status(200).json({
                 users,
@@ -106,7 +105,7 @@ class AdminController {
                 });
             }
 
-            const user = await this.authService.getUserByEmail(email);
+            const user = await this.adminService.getUserByEmail(email);
 
             return res.status(200).json({
                 user,

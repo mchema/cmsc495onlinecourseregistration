@@ -11,3 +11,6 @@ semesters_seeding_data.sql
 users_seeding_data.sql
 roles_seeding_data.sql
 /backend/src/cli/
+app.cli.js
+user.cli.js
+/.vscode
