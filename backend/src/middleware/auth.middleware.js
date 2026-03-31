@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import * as db from '../db/connection.js';
 
 function authMiddleware(req, res, next) {
     try {
@@ -31,13 +32,15 @@ function authMiddleware(req, res, next) {
         };
 
         req.firstLogin = {
-            firstLogin: decoded.firstLogin,
+            status: decoded.firstLogin,
         };
 
         next();
+        // eslint-disable-next-line no-unused-vars
     } catch (err) {
+        // console.error(err);
         return res.status(401).json({
-            error: 'Invalid or expired token.' + err,
+            error: 'Invalid or expired token.',
         });
     }
 }
@@ -53,7 +56,19 @@ function firstLoginMiddleware(options = {}) {
                 });
             }
 
-            if (req.firstLogin) {
+            const rows = await db.query('SELECT first_login FROM users WHERE user_id = ?', [req.user.id]);
+
+            if (rows.length === 0) {
+                return res.status(401).json({
+                    error: 'Authentication required.',
+                });
+            }
+
+            req.firstLogin = {
+                status: rows[0].first_login === 1,
+            };
+
+            if (req.firstLogin.status === false) {
                 return next();
             }
 

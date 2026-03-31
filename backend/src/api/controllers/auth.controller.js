@@ -17,17 +17,8 @@ class AuthController {
     async login(req, res, next) {
         try {
             const { email, password } = req.body;
-
-            if (!email || !password) {
-                return res.status(400).json({
-                    error: 'Email and Password are required.',
-                });
-            }
-
             const result = await this.authService.loginUser(email, password);
-
             const user = result.user;
-
             const token = jwt.sign(
                 {
                     user: user.toSafeObject() ?? null,
@@ -80,34 +71,27 @@ class AuthController {
         try {
             const { newPassword } = req.body;
 
-            if (!newPassword) {
-                return res.status(400).json({
-                    error: 'New password is required.',
-                });
-            }
-
-            if (typeof newPassword !== 'string') {
-                return res.status(400).json({
-                    error: 'New password must be a string.',
-                });
-            }
-
-            if (newPassword.trim().length === 0) {
-                return res.status(400).json({
-                    error: 'New password cannot be empty.',
-                });
-            }
-
-            if (newPassword === 'Password') {
-                return res.status(400).json({
-                    error: 'New password cannot be the default password.',
-                });
-            }
-
             await this.authService.changePassword(req.user, newPassword);
+
+            const result = await this.authService.loginUser(req.user.email, newPassword);
+            const user = result.user;
+
+            const token = jwt.sign(
+                {
+                    user: user.toSafeObject() ?? null,
+                    firstLogin: user.getFirstLogin(),
+                },
+                process.env.JWT_SECRET,
+                {
+                    expiresIn: process.env.JWT_EXPIRES_IN,
+                }
+            );
 
             return res.status(200).json({
                 message: 'Password changed successfully.',
+                firstLogin: result.firstLogin,
+                token,
+                user: user.toSafeObject(),
             });
         } catch (err) {
             next(err);
@@ -117,18 +101,24 @@ class AuthController {
     // Express Update User Info
     async updateUserInfo(req, res, next) {
         try {
-            const { user, name, email } = req.body;
+            const { name, email } = req.body;
 
-            if (!user || !name || !email) {
-                return res.status(400).json({
-                    error: 'Missing fields are required.',
-                });
-            }
-
-            await this.authService.updateUserInfo(user, name, email);
+            const user = await this.authService.updateUserInfo(name, email, req.user.id);
+            const token = jwt.sign(
+                {
+                    user: user.toSafeObject() ?? null,
+                    firstLogin: user.getFirstLogin(),
+                },
+                process.env.JWT_SECRET,
+                {
+                    expiresIn: process.env.JWT_EXPIRES_IN,
+                }
+            );
 
             return res.status(200).json({
-                message: 'Updated user Info successfully.',
+                message: 'Updated user info successfully.',
+                token,
+                user: user.toSafeObject(),
             });
         } catch (err) {
             next(err);

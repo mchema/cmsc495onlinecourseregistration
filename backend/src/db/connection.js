@@ -1,16 +1,17 @@
 import mysql from 'mysql2';
 import dotenv from 'dotenv';
-dotenv.config({quiet: true});
+dotenv.config({ quiet: true });
 
 let con = mysql.createPool({
-    host: '127.0.0.1',
-    port: 3306,
+    host: process.env.MYSQL_HOST,
+    port: process.env.MYSQL_PORT,
     user: process.env.MYSQL_USER,
     password: process.env.MYSQL_PASSWORD,
     database: process.env.MYSQL_DATABASE,
     connectionLimit: 10,
 });
 
+// Standard query through Pool
 export const query = (sql, params) => {
     return new Promise((resolve, reject) => {
         con.query(sql, params, (err, results) => {
@@ -20,16 +21,70 @@ export const query = (sql, params) => {
     });
 };
 
+// get a connection from the pool for transactions
+export const getConnection = () => {
+    return new Promise((resolve, reject) => {
+        con.getConnection((err, connection) => {
+            if (err) reject(err);
+            else resolve(connection);
+        });
+    });
+};
+
+// Begin Transaction
+export const beginTransaction = (connection) => {
+    return new Promise((resolve, reject) => {
+        connection.beginTransaction((err) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+};
+
+// Commit Transaction
+export const commit = (connection) => {
+    return new Promise((resolve, reject) => {
+        connection.commit((err) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+};
+
+// Rollback Transaction
+export const rollback = (connection) => {
+    return new Promise((resolve) => {
+        connection.rollback(() => {
+            resolve();
+        });
+    });
+};
+
+// Query using a specific connection (for transactions)
+export const queryWithConnection = (connection, sql, params) => {
+    return new Promise((resolve, reject) => {
+        connection.query(sql, params, (err, results) => {
+            if (err) reject(err);
+            else resolve(results);
+        });
+    });
+};
+
+// Release a connection back to the pool
+export const releaseConnection = (connection) => {
+    connection.release();
+};
+
+// Close the connection pool
 export const close = () => {
     return new Promise((resolve, reject) => {
-        let pending = 2;
+        con.end((err) => {
+            if (err) {
+                reject(err);
+                return;
+            }
 
-        const done = (err) => {
-            if (err) return reject(err);
-            pending--;
-            if (pending === 0) resolve();
-        };
-
-        con.end(done);
+            resolve();
+        });
     });
 };

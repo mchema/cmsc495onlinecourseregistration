@@ -6,22 +6,43 @@
         "express": "^5.2.1",
         "jsonwebtoken": "^9.0.3",
         "morgan": "^1.10.1",
-        "mysql2": "^3.20.0"
+        "mysql2": "^3.20.0",
+        "zod": "^4.3.6",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "react-router-dom": "^6.30.1"
     },
     "devDependencies": {
         "@eslint/js": "^9.39.4",
         "eslint": "^9.39.4",
         "eslint-plugin-react": "^7.37.5",
         "globals": "^17.4.0",
-        "prettier": "3.8.1"
+        "prettier": "3.8.1",
+        "@types/node": "^24.12.0",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "@vitejs/plugin-react": "^6.0.1",
+        "eslint-plugin-react-hooks": "^7.0.1",
+        "eslint-plugin-react-refresh": "^0.5.2",
+        "typescript": "~5.9.3",
+        "typescript-eslint": "^8.57.0",
+        "vite": "^8.0.1"
     },
     "type": "module",
+    "name": "classreg-system",
+    "private": true,
+    "version": "0.0.0",
     "scripts": {
         "setup": "node ./scripts/setup.js",
         "db:schema": "node ./scripts/dbSchema.js",
         "db:seed": "node ./scripts/dbSeed.js",
         "db:reset": "node ./scripts/dbReset.js",
+        "courses:browse": "node ./scripts/browseCourses.js",
         "start": "node ./backend/src/server.js",
-        "test": "node ./backend/src/apiTestRunner.js"
+        "test": "node ./backend/src/apiTestRunner.js",
+        "dev": "vite",
+        "build": "tsc -b && vite build",
+        "lint": "eslint .",
+        "preview": "vite preview"
     }
 }

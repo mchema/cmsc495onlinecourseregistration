@@ -25,26 +25,35 @@ export async function runAuthSuite(ctx, request) {
     assertEqual(health.body?.message, 'API is running', 'Unexpected health body', health.body);
     logPass('GET /api/health returns 200');
 
-    const missingCredentials = await request('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({}),
-    });
-    assertStatus(missingCredentials, 400, 'POST /api/auth/login should reject missing credentials');
-    logPass('POST /api/auth/login rejects missing credentials');
+    const loginFailureCases = [
+        {
+            body: {},
+            expectedStatus: 400,
+            failureMessage: 'POST /api/auth/login should reject missing credentials',
+            successMessage: 'POST /api/auth/login rejects missing credentials',
+        },
+        {
+            body: { email: ADMIN_USER.email, password: 'WrongPassword' },
+            expectedStatus: 401,
+            failureMessage: 'POST /api/auth/login should reject invalid password',
+            successMessage: 'POST /api/auth/login rejects invalid password',
+        },
+        {
+            body: { email: 'thisEmailDoesnt@exist.com', password: 'WrongPassword' },
+            expectedStatus: 401,
+            failureMessage: 'POST /api/auth/login should reject invalid email',
+            successMessage: 'POST /api/auth/login rejects invalid email',
+        },
+    ];
 
-    const badPassword = await request('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email: ADMIN_USER.email, password: 'WrongPassword' }),
-    });
-    assertStatus(badPassword, 401, 'POST /api/auth/login should reject invalid password');
-    logPass('POST /api/auth/login rejects invalid password');
-
-    const badEmail = await request('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email: 'thisEmailDoesnt@exist.com', password: 'WrongPassword' }),
-    });
-    assertStatus(badEmail, 401, 'POST /api/auth/login should reject invalid email');
-    logPass('POST /api/auth/login rejects invalid email');
+    for (const testCase of loginFailureCases) {
+        const res = await request('/api/auth/login', {
+            method: 'POST',
+            body: JSON.stringify(testCase.body),
+        });
+        assertStatus(res, testCase.expectedStatus, testCase.failureMessage);
+        logPass(testCase.successMessage);
+    }
 
     ctx.adminAuth = await loginAndGetAuth(request, ADMIN_USER.email, ADMIN_USER.password);
     assertTruthy(ctx.adminAuth.user?.email, 'Missing user payload on admin login', ctx.adminAuth);
@@ -54,15 +63,28 @@ export async function runAuthSuite(ctx, request) {
     }
     logPass('POST /api/auth/login accepts valid credentials and returns token');
 
-    const meWithoutToken = await request('/api/auth/me');
-    assertStatus(meWithoutToken, 401, 'GET /api/auth/me should reject missing token');
-    logPass('GET /api/auth/me rejects missing token');
+    const meAuthCases = [
+        {
+            options: undefined,
+            expectedStatus: 401,
+            failureMessage: 'GET /api/auth/me should reject missing token',
+            successMessage: 'GET /api/auth/me rejects missing token',
+        },
+        {
+            options: {
+                headers: authHeaders('not-a-real-token'),
+            },
+            expectedStatus: 401,
+            failureMessage: 'GET /api/auth/me should reject invalid token',
+            successMessage: 'GET /api/auth/me rejects invalid token',
+        },
+    ];
 
-    const meWithInvalidToken = await request('/api/auth/me', {
-        headers: authHeaders('not-a-real-token'),
-    });
-    assertStatus(meWithInvalidToken, 401, 'GET /api/auth/me should reject invalid token');
-    logPass('GET /api/auth/me rejects invalid token');
+    for (const testCase of meAuthCases) {
+        const res = await request('/api/auth/me', testCase.options);
+        assertStatus(res, testCase.expectedStatus, testCase.failureMessage);
+        logPass(testCase.successMessage);
+    }
 
     const meWithValidToken = await request('/api/auth/me', {
         headers: authHeaders(ctx.adminAuth.token),
@@ -85,20 +107,33 @@ export async function runAuthSuite(ctx, request) {
 }
 
 export async function runPasswordSuite(ctx, request) {
-    const changePasswordWithoutToken = await request('/api/auth/change-password', {
-        method: 'POST',
-        body: JSON.stringify({ newPassword: 'SomeValidPassword123!' }),
-    });
-    assertStatus(changePasswordWithoutToken, 401, 'POST /api/auth/change-password should reject missing token');
-    logPass('POST /api/auth/change-password rejects missing token');
+    const initialPasswordCases = [
+        {
+            options: {
+                method: 'POST',
+                body: JSON.stringify({ newPassword: 'SomeValidPassword123!' }),
+            },
+            expectedStatus: 401,
+            failureMessage: 'POST /api/auth/change-password should reject missing token',
+            successMessage: 'POST /api/auth/change-password rejects missing token',
+        },
+        {
+            options: {
+                method: 'POST',
+                headers: authHeaders(ctx.nonAdminAuth.token),
+                body: JSON.stringify({}),
+            },
+            expectedStatus: 400,
+            failureMessage: 'POST /api/auth/change-password should reject missing new password',
+            successMessage: 'POST /api/auth/change-password rejects missing new password',
+        },
+    ];
 
-    const changePasswordMissingPassword = await request('/api/auth/change-password', {
-        method: 'POST',
-        headers: authHeaders(ctx.nonAdminAuth.token),
-        body: JSON.stringify({}),
-    });
-    assertStatus(changePasswordMissingPassword, 400, 'POST /api/auth/change-password should reject missing new password');
-    logPass('POST /api/auth/change-password rejects missing new password');
+    for (const testCase of initialPasswordCases) {
+        const res = await request('/api/auth/change-password', testCase.options);
+        assertStatus(res, testCase.expectedStatus, testCase.failureMessage);
+        logPass(testCase.successMessage);
+    }
 
     const policyCases = [
         ['Password', 'POST /api/auth/change-password rejects default password reuse'],
@@ -142,4 +177,101 @@ export async function runPasswordSuite(ctx, request) {
     assertEqual(ctx.updatedNonAdminAuth.user?.email, ctx.newUser.email, 'Unexpected user after password change', ctx.updatedNonAdminAuth);
     assertEqual(ctx.updatedNonAdminAuth.firstLogin, false, 'Expected firstLogin false after password change', ctx.updatedNonAdminAuth);
     logPass('New password is accepted after password change');
+}
+
+export async function runUpdateUserInfoSuite(ctx, request) {
+    const updatePayload = {
+        name: ctx.updatedUserProfile.name,
+        email: ctx.updatedUserProfile.email,
+    };
+
+    const withoutToken = await request('/api/auth/update-user', {
+        method: 'POST',
+        body: JSON.stringify(updatePayload),
+    });
+    assertStatus(withoutToken, 401, 'POST /api/auth/update-user should reject missing token');
+    logPass('POST /api/auth/update-user rejects missing token');
+
+    const withInvalidToken = await request('/api/auth/update-user', {
+        method: 'POST',
+        headers: authHeaders('not-a-real-token'),
+        body: JSON.stringify(updatePayload),
+    });
+    assertStatus(withInvalidToken, 401, 'POST /api/auth/update-user should reject invalid token');
+    logPass('POST /api/auth/update-user rejects invalid token');
+
+    const missingFieldCases = [
+        [{ email: updatePayload.email }, 'POST /api/auth/update-user rejects missing name'],
+        [{ name: updatePayload.name }, 'POST /api/auth/update-user rejects missing email'],
+    ];
+
+    for (const [body, successMessage] of missingFieldCases) {
+        const res = await request('/api/auth/update-user', {
+            method: 'POST',
+            headers: authHeaders(ctx.updatedNonAdminAuth.token),
+            body: JSON.stringify(body),
+        });
+        assertStatus(res, 400, `${successMessage} failed`);
+        logPass(successMessage);
+    }
+
+    const updateRes = await request('/api/auth/update-user', {
+        method: 'POST',
+        headers: authHeaders(ctx.updatedNonAdminAuth.token),
+        body: JSON.stringify(updatePayload),
+    });
+    assertStatus(updateRes, 200, 'POST /api/auth/update-user should accept valid authenticated request');
+    assertTruthy(updateRes.body?.token, 'POST /api/auth/update-user should return a refreshed token', updateRes.body);
+    assertEqual(updateRes.body?.user?.name, ctx.updatedUserProfile.name, 'POST /api/auth/update-user should return updated name', updateRes.body);
+    assertEqual(updateRes.body?.user?.email, ctx.updatedUserProfile.email, 'POST /api/auth/update-user should return updated email', updateRes.body);
+    logPass('POST /api/auth/update-user accepts valid authenticated request');
+
+    ctx.updatedNonAdminAuth = {
+        token: updateRes.body.token,
+        user: updateRes.body.user,
+        firstLogin: false,
+    };
+
+    const meAfterUpdate = await request('/api/auth/me', {
+        headers: authHeaders(ctx.updatedNonAdminAuth.token),
+    });
+    assertStatus(meAfterUpdate, 200, 'GET /api/auth/me should succeed after profile update');
+    assertEqual(meAfterUpdate.body?.user?.name, ctx.updatedUserProfile.name, 'Updated name should be reflected in /me', meAfterUpdate.body);
+    assertEqual(meAfterUpdate.body?.user?.email, ctx.updatedUserProfile.email, 'Updated email should be reflected in /me', meAfterUpdate.body);
+    logPass('GET /api/auth/me reflects updated profile information');
+
+    const passwordChangeAfterProfileUpdate = await request('/api/auth/change-password', {
+        method: 'POST',
+        headers: authHeaders(ctx.updatedNonAdminAuth.token),
+        body: JSON.stringify({ newPassword: ctx.finalUserPassword }),
+    });
+    assertStatus(passwordChangeAfterProfileUpdate, 200, 'POST /api/auth/change-password should succeed with refreshed token after profile update');
+    assertTruthy(passwordChangeAfterProfileUpdate.body?.token, 'Password change after profile update should return a token', passwordChangeAfterProfileUpdate.body);
+    logPass('POST /api/auth/change-password works with refreshed token after profile update');
+
+    const duplicateEmailRejected = await request('/api/auth/update-user', {
+        method: 'POST',
+        headers: authHeaders(ctx.updatedNonAdminAuth.token),
+        body: JSON.stringify({
+            name: ctx.updatedUserProfile.name,
+            email: ADMIN_USER.email,
+        }),
+    });
+    assertStatus(duplicateEmailRejected, 409, 'POST /api/auth/update-user should reject duplicate email addresses');
+    logPass('POST /api/auth/update-user rejects duplicate email addresses');
+
+    const oldEmailLoginRejected = await request('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({
+            email: ctx.newUser.email,
+            password: ctx.newUserUpdatedPassword,
+        }),
+    });
+    assertStatus(oldEmailLoginRejected, 401, 'Old email should be rejected after profile update');
+    logPass('Old email is rejected after profile update');
+
+    ctx.updatedNonAdminAuth = await loginAndGetAuth(request, ctx.updatedUserProfile.email, ctx.finalUserPassword);
+    assertEqual(ctx.updatedNonAdminAuth.user?.name, ctx.updatedUserProfile.name, 'Unexpected name after profile update login', ctx.updatedNonAdminAuth);
+    assertEqual(ctx.updatedNonAdminAuth.user?.email, ctx.updatedUserProfile.email, 'Unexpected email after profile update login', ctx.updatedNonAdminAuth);
+    logPass('Updated email can be used to log in after profile update');
 }

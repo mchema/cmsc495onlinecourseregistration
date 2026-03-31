@@ -8,18 +8,12 @@ class CourseController {
         this.addNewCourse = this.addNewCourse.bind(this);
         this.updateCourse = this.updateCourse.bind(this);
         this.removeCourse = this.removeCourse.bind(this);
+        this.getAllCourses = this.getAllCourses.bind(this);
     }
 
     async getCourseInfo(req, res, next) {
         try {
             const { courseId } = req.params;
-
-            if (!courseId || Number.isNaN(courseId)) {
-                return res.status(400).json({
-                    error: 'Valid course ID is required.',
-                });
-            }
-
             const course = await this.courseService.getCourseInfo(courseId);
 
             return res.status(200).json(course.toObject());
@@ -31,13 +25,6 @@ class CourseController {
     async addNewCourse(req, res, next) {
         try {
             const { courseCode, courseTitle, courseDescription, courseCredits } = req.body;
-
-            if (!courseCode || !courseTitle || !courseDescription || courseCredits == null || Number.isNaN(courseCredits)) {
-                return res.status(400).json({
-                    error: 'Course code, title, description, and numeric credits are required.',
-                });
-            }
-
             const course = await this.courseService.addNewCourse({
                 course_code: courseCode,
                 title: courseTitle,
@@ -58,19 +45,6 @@ class CourseController {
         try {
             const { courseId } = req.params;
             const { courseCode, courseTitle, courseDescription, courseCredits } = req.body;
-
-            if (!courseId || Number.isNaN(courseId)) {
-                return res.status(400).json({
-                    error: 'Valid course ID is required.',
-                });
-            }
-
-            if (!courseCode || !courseTitle || !courseDescription || courseCredits == null || Number.isNaN(courseCredits)) {
-                return res.status(400).json({
-                    error: 'Course code, title, description, and numeric credits are required.',
-                });
-            }
-
             const course = await this.courseService.updateCourse(courseId, {
                 course_code: courseCode,
                 title: courseTitle,
@@ -90,17 +64,24 @@ class CourseController {
     async removeCourse(req, res, next) {
         try {
             const { courseId } = req.params;
-
-            if (!courseId || Number.isNaN(courseId)) {
-                return res.status(400).json({
-                    error: 'Valid course ID is required.',
-                });
-            }
-
-            await this.courseService.removeCourse(Number(courseId));
+            await this.courseService.removeCourse(courseId);
 
             return res.status(200).json({
                 message: 'Course deleted successfully.',
+            });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async getAllCourses(req, res, next) {
+        try {
+            const { page = 1, limit = 10, search = '', subject = null } = req.query;
+            const result = await this.courseService.getAllCourses(page, limit, search, subject);
+
+            return res.status(200).json({
+                courses: result.data,
+                meta: result.meta,
             });
         } catch (err) {
             next(err);

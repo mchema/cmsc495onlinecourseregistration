@@ -7,7 +7,7 @@ class AdminController {
         this.addUser = this.addUser.bind(this);
         this.removeUser = this.removeUser.bind(this);
         this.getAllUsers = this.getAllUsers.bind(this);
-        this.getUserByEmail = this.getUserByEmail.bind(this);
+        this.getUserByID = this.getUserByID.bind(this);
         this.setUserRole = this.setUserRole.bind(this);
     }
 
@@ -15,13 +15,6 @@ class AdminController {
     async addUser(req, res, next) {
         try {
             const { name, email, roleDetails, userType } = req.body;
-
-            if (!name || !email) {
-                return res.status(400).json({
-                    error: 'Name, email, and roleType are required.',
-                });
-            }
-
             await this.adminService.addUser(name, email, roleDetails, userType);
 
             return res.status(201).json({
@@ -36,14 +29,7 @@ class AdminController {
     async removeUser(req, res, next) {
         try {
             const { id } = req.params;
-
-            if (!id || Number.isNaN(Number(id))) {
-                return res.status(400).json({
-                    error: 'Valid user ID is required.',
-                });
-            }
-
-            await this.adminService.removeUser(Number(id));
+            await this.adminService.removeUser(id, req.user);
 
             return res.status(200).json({
                 message: 'User removed successfully.',
@@ -59,19 +45,7 @@ class AdminController {
             const { id } = req.params;
             const { userType, roleDetails } = req.body;
 
-            if (!id || Number.isNaN(Number(id))) {
-                return res.status(400).json({
-                    error: 'Valid user ID is required.',
-                });
-            }
-
-            if (!userType) {
-                return res.status(400).json({
-                    error: 'User type is required.',
-                });
-            }
-
-            await this.adminService.setUserRole(id, roleDetails, userType);
+            await this.adminService.setUserRole(id, roleDetails, userType, null, req.user);
 
             return res.status(200).json({
                 message: 'User role updated successfully.',
@@ -84,28 +58,23 @@ class AdminController {
     // View All Users
     async getAllUsers(req, res, next) {
         try {
-            const users = await this.adminService.getAllUsers();
+            const { page = 1, limit = 10, search = '', role = null } = req.query;
+            const result = await this.adminService.getAllUsers(page, limit, search, role);
 
             return res.status(200).json({
-                users,
+                users: result.data,
+                meta: result.meta,
             });
         } catch (err) {
             next(err);
         }
     }
 
-    // Get User by Email
-    async getUserByEmail(req, res, next) {
+    // Get User by ID
+    async getUserByID(req, res, next) {
         try {
-            const { email } = req.query;
-
-            if (!email) {
-                return res.status(400).json({
-                    error: 'Email is required.',
-                });
-            }
-
-            const user = await this.adminService.getUserByEmail(email);
+            const { id } = req.params;
+            const user = await this.adminService.getUserByID(id);
 
             return res.status(200).json({
                 user,

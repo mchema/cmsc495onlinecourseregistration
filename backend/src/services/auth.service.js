@@ -19,22 +19,22 @@ class AuthService {
 
     // Initialize User
     async loginUser(email, password) {
-        const rows = await db.query('SELECT user_id, name, email, password_hash, first_login FROM users WHERE email = ?', [email]);
+        const rows = await db.query('SELECT user_id AS id, name, email, password_hash, first_login FROM users WHERE email = ?', [email]);
 
         if (rows.length === 0) {
             throw new Errors.AuthenticationError('Invalid email and/or password.');
         }
 
         const user = User.fromPersistence(rows[0]);
-        const safeUser = user.withoutPasswordHash();
-        const roleUser = await this.getCurrentUserInfo(safeUser.toSafeObject());
 
         const passwordCheck = await bcrypt.compare(password, user.getPasswordHash());
 
         if (passwordCheck === false) {
             throw new Errors.AuthenticationError('Invalid email and/or password.');
         }
- 
+
+        const safeUser = user.withoutPasswordHash();
+        const roleUser = await this.getCurrentUserInfo(safeUser.toSafeObject());
         const isFirstLogin = user.getFirstLogin();
 
         if (isFirstLogin === true) {
@@ -49,19 +49,12 @@ class AuthService {
         };
     }
 
-    // Check for First Time Login
-    isFirstLoginUser(user) {
-        return user.getFirstLogin() === true;
-    }
-
     // Change Password enforces Password Policy, Hashing, and persistence
     async changePassword(authUser = null, password) {
         if (authUser === null) {
             throw new Errors.AuthenticationError('Authentication required.');
         }
         this.validatePasswordPolicy(password, authUser);
-
-        console.log(password);
 
         const hash = await bcrypt.hash(password, saltRounds);
         await this.setPassword(authUser.id, hash);
@@ -139,17 +132,25 @@ class AuthService {
             throw new Errors.AuthenticationError('Authentication required.');
         }
 
-        const rows = await db.query('SELECT user_id, name, email, password_hash, first_login FROM users WHERE user_id = ?', [authUser.id]);
+        const rows = await db.query('SELECT user_id AS id, name, email, password_hash, first_login FROM users WHERE user_id = ?', [authUser.id]);
         const user = User.fromPersistence(rows[0]);
 
         const roleRows = await this.updateUserType(user);
-        const roleUser = user.withRole(roleRows);
+        const roleUser = user.withRole(roleRows).withoutPasswordHash();
 
         return roleUser;
     }
 
-    async updateUserInfo(user, name, email) {
-        await db.query('UPDATE users SET name = ?, email = ? WHERE user_id = ?', [name, email, user.user_id]);
+    async updateUserInfo(name, email, id) {
+        const existingRows = await db.query('SELECT COUNT(*) AS count FROM users WHERE email = ? AND user_id <> ?', [email, id]);
+
+        if (existingRows[0].count > 0) {
+            throw new Errors.DuplicateEntryError('User with this email already exists.');
+        }
+
+        await db.query('UPDATE users SET name = ?, email = ? WHERE user_id = ?', [name, email, id]);
+
+        return this.getCurrentUserInfo({ id });
     }
 }
 

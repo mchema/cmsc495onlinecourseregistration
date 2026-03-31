@@ -1,5 +1,9 @@
+import { API_TEST_VERBOSE } from './config.js';
+
 export function logPass(message) {
-    console.log(`PASS: ${message}`);
+    if (API_TEST_VERBOSE) {
+        console.log(`PASS: ${message}`);
+    }
 }
 
 export function logFail(message, extra = '') {
@@ -8,5 +12,7 @@ export function logFail(message, extra = '') {
 }
 
 export function logInfo(message) {
-    console.log(`INFO: ${message}`);
+    if (API_TEST_VERBOSE) {
+        console.log(`INFO: ${message}`);
+    }
 }

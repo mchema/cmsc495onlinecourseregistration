@@ -29,7 +29,7 @@ class User {
         }
 
         const user = new User({
-            id: row.user_id,
+            id: row.id,
             name: row.name,
             email: row.email,
             password_hash: row.password_hash ?? null,
@@ -42,7 +42,7 @@ class User {
         return user;
     }
 
-    // Constructs a User instance from a sanitized object (No password_hash or first_login);
+    // Constructs a User instance from a sanitized object (No password_hash);
     static fromSafeObject(data) {
         if (!data) {
             throw new Errors.ValidationError('Object data is required.');
@@ -52,6 +52,7 @@ class User {
             id: data.id,
             name: data.name,
             email: data.email,
+            first_login: data.first_login,
             role: data.role ?? null,
             role_id: data.role_id ?? null,
             role_details: data.role_details ?? null,
@@ -134,6 +135,7 @@ class User {
             name: this.#name,
             email: this.#email,
             password_hash: this.#password_hash,
+            first_login: this.#first_login,
             role,
             role_id,
             role_details,
@@ -146,6 +148,7 @@ class User {
             id: this.#id,
             name: this.#name,
             email: this.#email,
+            first_login: this.#first_login,
             role: this.#role,
             role_id: this.#role_id,
             role_details: this.#role_details,
@@ -158,6 +161,7 @@ class User {
             id: this.#id,
             name: this.#name,
             email: this.#email,
+            first_login: this.#first_login,
             role: this.#role,
             role_id: this.#role_id,
             role_details: this.#role_details,

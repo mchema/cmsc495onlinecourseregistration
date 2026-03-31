@@ -1,30 +1,72 @@
 import { assertEqual, assertStatus, assertTruthy } from '../assert.js';
 import { authHeaders } from '../http.js';
 import { logPass } from '../logger.js';
+import * as db from '../../../db/connection.js';
 
 export async function runCoursesSuite(ctx, request) {
-    const createWithoutToken = await request('/api/courses', {
-        method: 'POST',
-        body: JSON.stringify(ctx.courseTest.create),
-    });
-    assertStatus(createWithoutToken, 401, 'POST /api/courses should reject missing token');
-    logPass('POST /api/courses rejects missing token');
+    const invalidListQuery = await request('/api/courses?page=-1&limit=0');
+    assertStatus(invalidListQuery, 400, 'GET /api/courses should reject invalid pagination values');
+    logPass('GET /api/courses rejects invalid pagination values');
 
-    const createWithInvalidToken = await request('/api/courses', {
-        method: 'POST',
-        headers: authHeaders('not-a-real-token'),
-        body: JSON.stringify(ctx.courseTest.create),
-    });
-    assertStatus(createWithInvalidToken, 401, 'POST /api/courses should reject invalid token');
-    logPass('POST /api/courses rejects invalid token');
+    const invalidSubjectQuery = await request('/api/courses?subject=ZZZZ');
+    assertStatus(invalidSubjectQuery, 400, 'GET /api/courses should reject invalid subject filters');
+    logPass('GET /api/courses rejects invalid subject filters');
 
-    const createWithNonAdminToken = await request('/api/courses', {
-        method: 'POST',
-        headers: authHeaders(ctx.updatedNonAdminAuth.token),
-        body: JSON.stringify(ctx.courseTest.create),
-    });
-    assertStatus(createWithNonAdminToken, 403, 'POST /api/courses should reject non-admin user');
-    logPass('POST /api/courses rejects non-admin user');
+    const publicList = await request('/api/courses?page=1&limit=5');
+    assertStatus(publicList, 200, 'GET /api/courses should return a public course list');
+    assertTruthy(Array.isArray(publicList.body?.courses), 'GET /api/courses should return a courses array', publicList.body);
+    assertEqual(publicList.body?.meta?.page, 1, 'GET /api/courses should return requested page', publicList.body);
+    assertEqual(publicList.body?.meta?.limit, 5, 'GET /api/courses should return requested limit', publicList.body);
+    assertTruthy(typeof publicList.body?.meta?.total === 'number', 'GET /api/courses should return total count metadata', publicList.body);
+    logPass('GET /api/courses returns paginated public results');
+
+    const subjectFilteredList = await request('/api/courses?subject=CMSC&limit=5');
+    assertStatus(subjectFilteredList, 200, 'GET /api/courses should support subject filtering');
+    assertTruthy(subjectFilteredList.body?.courses?.length > 0, 'GET /api/courses subject filter should return courses', subjectFilteredList.body);
+    assertTruthy(
+        subjectFilteredList.body.courses.every((course) => course.course_code.startsWith('CMSC')),
+        'GET /api/courses subject filter should only return matching subject codes',
+        subjectFilteredList.body
+    );
+    logPass('GET /api/courses supports subject filtering');
+
+    const createAccessCases = [
+        {
+            options: {
+                method: 'POST',
+                body: JSON.stringify(ctx.courseTest.create),
+            },
+            expectedStatus: 401,
+            failureMessage: 'POST /api/courses should reject missing token',
+            successMessage: 'POST /api/courses rejects missing token',
+        },
+        {
+            options: {
+                method: 'POST',
+                headers: authHeaders('not-a-real-token'),
+                body: JSON.stringify(ctx.courseTest.create),
+            },
+            expectedStatus: 401,
+            failureMessage: 'POST /api/courses should reject invalid token',
+            successMessage: 'POST /api/courses rejects invalid token',
+        },
+        {
+            options: {
+                method: 'POST',
+                headers: authHeaders(ctx.updatedNonAdminAuth.token),
+                body: JSON.stringify(ctx.courseTest.create),
+            },
+            expectedStatus: 403,
+            failureMessage: 'POST /api/courses should reject non-admin user',
+            successMessage: 'POST /api/courses rejects non-admin user',
+        },
+    ];
+
+    for (const testCase of createAccessCases) {
+        const res = await request('/api/courses', testCase.options);
+        assertStatus(res, testCase.expectedStatus, testCase.failureMessage);
+        logPass(testCase.successMessage);
+    }
 
     const createWithAdminToken = await request('/api/courses', {
         method: 'POST',
@@ -38,34 +80,66 @@ export async function runCoursesSuite(ctx, request) {
     assertEqual(createWithAdminToken.body?.course?.course_code, ctx.courseTest.create.courseCode, 'Unexpected created course code', createWithAdminToken.body);
     logPass('POST /api/courses allows admin user to create course');
 
+    const duplicateCreate = await request('/api/courses', {
+        method: 'POST',
+        headers: authHeaders(ctx.adminAuth.token),
+        body: JSON.stringify(ctx.courseTest.create),
+    });
+    assertStatus(duplicateCreate, 409, 'POST /api/courses should reject duplicate course codes');
+    logPass('POST /api/courses rejects duplicate course codes');
+
     const getById = await request(`/api/courses/${ctx.createdCourseId}`);
     assertStatus(getById, 200, 'GET /api/courses/:courseId should return created course');
     assertEqual(getById.body?.course_id, ctx.createdCourseId, 'Unexpected course_id from GET /api/courses/:courseId', getById.body);
     assertEqual(getById.body?.course_code, ctx.courseTest.create.courseCode, 'Unexpected course_code from GET /api/courses/:courseId', getById.body);
     logPass('GET /api/courses/:courseId returns created course');
 
-    const updateWithoutToken = await request(`/api/courses/${ctx.createdCourseId}`, {
-        method: 'PATCH',
-        body: JSON.stringify(ctx.courseTest.update),
-    });
-    assertStatus(updateWithoutToken, 401, 'PATCH /api/courses/:courseId should reject missing token');
-    logPass('PATCH /api/courses/:courseId rejects missing token');
+    const searchedCourseList = await request(`/api/courses?search=${encodeURIComponent(ctx.courseTest.create.courseTitle)}&limit=10`);
+    assertStatus(searchedCourseList, 200, 'GET /api/courses should support search');
+    assertTruthy(
+        searchedCourseList.body?.courses?.some((course) => course.course_id === ctx.createdCourseId),
+        'GET /api/courses search should return the created course',
+        searchedCourseList.body
+    );
+    logPass('GET /api/courses supports searching by course fields');
 
-    const updateWithInvalidToken = await request(`/api/courses/${ctx.createdCourseId}`, {
-        method: 'PATCH',
-        headers: authHeaders('not-a-real-token'),
-        body: JSON.stringify(ctx.courseTest.update),
-    });
-    assertStatus(updateWithInvalidToken, 401, 'PATCH /api/courses/:courseId should reject invalid token');
-    logPass('PATCH /api/courses/:courseId rejects invalid token');
+    const updateAccessCases = [
+        {
+            options: {
+                method: 'PATCH',
+                body: JSON.stringify(ctx.courseTest.update),
+            },
+            expectedStatus: 401,
+            failureMessage: 'PATCH /api/courses/:courseId should reject missing token',
+            successMessage: 'PATCH /api/courses/:courseId rejects missing token',
+        },
+        {
+            options: {
+                method: 'PATCH',
+                headers: authHeaders('not-a-real-token'),
+                body: JSON.stringify(ctx.courseTest.update),
+            },
+            expectedStatus: 401,
+            failureMessage: 'PATCH /api/courses/:courseId should reject invalid token',
+            successMessage: 'PATCH /api/courses/:courseId rejects invalid token',
+        },
+        {
+            options: {
+                method: 'PATCH',
+                headers: authHeaders(ctx.updatedNonAdminAuth.token),
+                body: JSON.stringify(ctx.courseTest.update),
+            },
+            expectedStatus: 403,
+            failureMessage: 'PATCH /api/courses/:courseId should reject non-admin user',
+            successMessage: 'PATCH /api/courses/:courseId rejects non-admin user',
+        },
+    ];
 
-    const updateWithNonAdminToken = await request(`/api/courses/${ctx.createdCourseId}`, {
-        method: 'PATCH',
-        headers: authHeaders(ctx.updatedNonAdminAuth.token),
-        body: JSON.stringify(ctx.courseTest.update),
-    });
-    assertStatus(updateWithNonAdminToken, 403, 'PATCH /api/courses/:courseId should reject non-admin user');
-    logPass('PATCH /api/courses/:courseId rejects non-admin user');
+    for (const testCase of updateAccessCases) {
+        const res = await request(`/api/courses/${ctx.createdCourseId}`, testCase.options);
+        assertStatus(res, testCase.expectedStatus, testCase.failureMessage);
+        logPass(testCase.successMessage);
+    }
 
     const updateWithAdminToken = await request(`/api/courses/${ctx.createdCourseId}`, {
         method: 'PATCH',
@@ -85,25 +159,83 @@ export async function runCoursesSuite(ctx, request) {
     assertEqual(Number(getByIdAfterUpdate.body?.credits), ctx.courseTest.update.courseCredits, 'Updated course credits not reflected in GET', getByIdAfterUpdate.body);
     logPass('GET /api/courses/:courseId reflects updated course data');
 
-    const deleteWithoutToken = await request(`/api/courses/${ctx.createdCourseId}`, {
-        method: 'DELETE',
-    });
-    assertStatus(deleteWithoutToken, 401, 'DELETE /api/courses/:courseId should reject missing token');
-    logPass('DELETE /api/courses/:courseId rejects missing token');
+    const searchAfterUpdate = await request(`/api/courses?search=${encodeURIComponent(ctx.courseTest.update.courseCode)}&limit=10`);
+    assertStatus(searchAfterUpdate, 200, 'GET /api/courses should return updated course in search results');
+    assertTruthy(
+        searchAfterUpdate.body?.courses?.some((course) => course.course_id === ctx.createdCourseId),
+        'GET /api/courses search should reflect updated course code',
+        searchAfterUpdate.body
+    );
+    logPass('GET /api/courses search reflects updated course data');
 
-    const deleteWithInvalidToken = await request(`/api/courses/${ctx.createdCourseId}`, {
-        method: 'DELETE',
-        headers: authHeaders('not-a-real-token'),
-    });
-    assertStatus(deleteWithInvalidToken, 401, 'DELETE /api/courses/:courseId should reject invalid token');
-    logPass('DELETE /api/courses/:courseId rejects invalid token');
+    const deleteAccessCases = [
+        {
+            options: {
+                method: 'DELETE',
+            },
+            expectedStatus: 401,
+            failureMessage: 'DELETE /api/courses/:courseId should reject missing token',
+            successMessage: 'DELETE /api/courses/:courseId rejects missing token',
+        },
+        {
+            options: {
+                method: 'DELETE',
+                headers: authHeaders('not-a-real-token'),
+            },
+            expectedStatus: 401,
+            failureMessage: 'DELETE /api/courses/:courseId should reject invalid token',
+            successMessage: 'DELETE /api/courses/:courseId rejects invalid token',
+        },
+        {
+            options: {
+                method: 'DELETE',
+                headers: authHeaders(ctx.updatedNonAdminAuth.token),
+            },
+            expectedStatus: 403,
+            failureMessage: 'DELETE /api/courses/:courseId should reject non-admin user',
+            successMessage: 'DELETE /api/courses/:courseId rejects non-admin user',
+        },
+    ];
 
-    const deleteWithNonAdminToken = await request(`/api/courses/${ctx.createdCourseId}`, {
-        method: 'DELETE',
-        headers: authHeaders(ctx.updatedNonAdminAuth.token),
+    for (const testCase of deleteAccessCases) {
+        const res = await request(`/api/courses/${ctx.createdCourseId}`, testCase.options);
+        assertStatus(res, testCase.expectedStatus, testCase.failureMessage);
+        logPass(testCase.successMessage);
+    }
+
+    const guardedCoursePayload = {
+        courseCode: `APGD${String(Date.now()).slice(-3)}`,
+        courseTitle: `Guarded API Test Course ${Date.now()}`,
+        courseDescription: 'Created by apiTestRunner to validate delete protection.',
+        courseCredits: 3,
+    };
+
+    const createGuardedCourse = await request('/api/courses', {
+        method: 'POST',
+        headers: authHeaders(ctx.adminAuth.token),
+        body: JSON.stringify(guardedCoursePayload),
     });
-    assertStatus(deleteWithNonAdminToken, 403, 'DELETE /api/courses/:courseId should reject non-admin user');
-    logPass('DELETE /api/courses/:courseId rejects non-admin user');
+    assertStatus(createGuardedCourse, 201, 'POST /api/courses should create guarded course');
+    const guardedCourseId = createGuardedCourse.body?.course?.course_id;
+    assertTruthy(guardedCourseId, 'Guarded course id should be present', createGuardedCourse.body);
+
+    const sectionId = await createDependentSection(guardedCourseId);
+
+    const deleteGuardedCourse = await request(`/api/courses/${guardedCourseId}`, {
+        method: 'DELETE',
+        headers: authHeaders(ctx.adminAuth.token),
+    });
+    assertStatus(deleteGuardedCourse, 400, 'DELETE /api/courses/:courseId should reject deletion when sections exist');
+    logPass('DELETE /api/courses/:courseId rejects deletion when sections exist');
+
+    await db.query('DELETE FROM sections WHERE section_id = ?', [sectionId]);
+
+    const deleteGuardedCourseAfterCleanup = await request(`/api/courses/${guardedCourseId}`, {
+        method: 'DELETE',
+        headers: authHeaders(ctx.adminAuth.token),
+    });
+    assertStatus(deleteGuardedCourseAfterCleanup, 200, 'DELETE /api/courses/:courseId should succeed after dependent sections are removed');
+    logPass('DELETE /api/courses/:courseId succeeds after dependent sections are removed');
 
     const deleteWithAdminToken = await request(`/api/courses/${ctx.createdCourseId}`, {
         method: 'DELETE',
@@ -115,4 +247,16 @@ export async function runCoursesSuite(ctx, request) {
     const getAfterDelete = await request(`/api/courses/${ctx.createdCourseId}`);
     assertStatus(getAfterDelete, 404, 'GET /api/courses/:courseId should return 404 after deletion');
     logPass('GET /api/courses/:courseId returns 404 after deletion');
+}
+
+async function createDependentSection(courseId) {
+    const semesters = await db.query('SELECT semester_id FROM semesters ORDER BY semester_id ASC LIMIT 1');
+    const professors = await db.query('SELECT professor_id FROM professors ORDER BY professor_id ASC LIMIT 1');
+
+    assertTruthy(semesters[0]?.semester_id, 'Test data requires at least one semester seed row', semesters);
+    assertTruthy(professors[0]?.professor_id, 'Test data requires at least one professor seed row', professors);
+
+    const result = await db.query('INSERT INTO sections (course_id, semester_id, professor_id, capacity, days, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?, ?)', [courseId, semesters[0].semester_id, professors[0].professor_id, 25, 'MW', '09:00:00', '10:15:00']);
+
+    return result.insertId;
 }
