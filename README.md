@@ -2,7 +2,7 @@
 
 ## CMSC 495 Group Delta Course Registration System
 
-This project currently exposes a REST API for authentication, admin user management, and course catalog management. This README is written for frontend integration and reflects the backend behavior that is actually mounted and tested right now.
+This project currently exposes a REST API for authentication, admin user management, course catalog management, and section management. This README is written for frontend integration and reflects the backend behavior that is actually mounted and tested right now.
 
 ## Backend Status
 
@@ -12,9 +12,10 @@ Implemented and available:
 - Admin user management
 - Public course catalog read endpoints
 - Admin course CRUD
+- Public section read endpoints
+- Admin section CRUD
 
 Not currently mounted in the API:
-- Sections
 - Enrollments
 - Prerequisites
 
@@ -151,6 +152,23 @@ Returned from course endpoints:
   "description": "Course description",
   "credits": 3,
   "subject": "Computer Science"
+}
+```
+
+## Section Object Shape
+
+Returned from section endpoints:
+
+```json
+{
+  "section_id": 5500,
+  "course_id": 130,
+  "semester_id": 1,
+  "professor_id": 1000,
+  "capacity": 24,
+  "days": "MW",
+  "start_time": "09:00:00",
+  "end_time": "10:15:00"
 }
 ```
 
@@ -441,6 +459,160 @@ Important:
 - a course cannot be deleted if it already has scheduled sections
 - in that case the backend returns `400`
 
+### Sections
+
+#### `GET /api/sections`
+
+Public endpoint.
+
+Query params:
+- `page` optional, positive integer, default `1`
+- `limit` optional, positive integer up to `100`, default `10`
+- `search` optional string
+- `semesterId` optional positive integer
+- `professorId` optional positive integer
+
+Response:
+
+```json
+{
+  "sections": [
+    {
+      "section_id": 5500,
+      "course_id": 130,
+      "semester_id": 1,
+      "professor_id": 1000,
+      "capacity": 24,
+      "days": "MW",
+      "start_time": "09:00:00",
+      "end_time": "10:15:00"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 10,
+    "total": 1,
+    "totalPages": 1
+  }
+}
+```
+
+Notes:
+- `search` matches `section_id` and `professor_id`
+- `semesterId` and `professorId` can be combined with pagination and search
+
+#### `GET /api/courses/:courseId/sections`
+
+Public endpoint.
+
+Uses the same query params and response shape as `GET /api/sections`, but results are restricted to the specified course.
+
+#### `GET /api/sections/:sectionId`
+
+Public endpoint.
+
+Response:
+
+```json
+{
+  "message": "Section info retrieved successfully.",
+  "section": {
+    "section_id": 5500,
+    "course_id": 130,
+    "semester_id": 1,
+    "professor_id": 1000,
+    "capacity": 24,
+    "days": "MW",
+    "start_time": "09:00:00",
+    "end_time": "10:15:00"
+  }
+}
+```
+
+#### `POST /api/courses/:courseId/sections`
+
+Admin only.
+
+Request body:
+
+```json
+{
+  "semesterId": 1,
+  "professorId": 1000,
+  "capacity": 24,
+  "days": "MW",
+  "startTime": "09:00",
+  "endTime": "10:15"
+}
+```
+
+Rules:
+- `semesterId`, `professorId`, and `capacity` must be positive integers
+- `days` must use canonical unique day codes in order, such as `MW`, `TR`, or `MWF`
+- `startTime` and `endTime` must both be provided together
+- times must use `HH:MM` 24-hour input format
+- `startTime` must be earlier than `endTime`
+- the backend persists times to the database `TIME` columns and returns them as `HH:MM:SS`
+- unknown `courseId`, `semesterId`, or `professorId` return `404`
+
+Response:
+
+```json
+{
+  "message": "Section added successfully.",
+  "section": {
+    "section_id": 5500,
+    "course_id": 130,
+    "semester_id": 1,
+    "professor_id": 1000,
+    "capacity": 24,
+    "days": "MW",
+    "start_time": "09:00:00",
+    "end_time": "10:15:00"
+  }
+}
+```
+
+#### `PATCH /api/sections/:sectionId`
+
+Admin only.
+
+Request body uses the same shape and validation rules as section create.
+
+Response:
+
+```json
+{
+  "message": "Section updated successfully.",
+  "section": {
+    "section_id": 5500,
+    "course_id": 130,
+    "semester_id": 2,
+    "professor_id": 1000,
+    "capacity": 18,
+    "days": "TR",
+    "start_time": "13:30:00",
+    "end_time": "14:45:00"
+  }
+}
+```
+
+#### `DELETE /api/sections/:sectionId`
+
+Admin only.
+
+Response:
+
+```json
+{
+  "message": "Section removed successfully."
+}
+```
+
+Important:
+- a section cannot be deleted if it has enrollments
+- in that case the backend returns `400`
+
 ### Admin
 
 All admin routes require:
@@ -636,7 +808,6 @@ Recommended UI rules:
 ### Current Backend Limitation
 
 The frontend should not assume these APIs are available yet:
-- sections
 - enrollments
 - prerequisites
 

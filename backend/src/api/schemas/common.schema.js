@@ -10,6 +10,10 @@ export const courseIdParamSchema = z.object({
     courseId: z.coerce.number().int().positive(),
 });
 
+export const sectionIdParamSchema = z.object({
+    sectionId: z.coerce.number().int().positive(),
+});
+
 // Validation schema for pagination and search query parameters, with defaults for page and limit, and optional search string
 export const paginationQuerySchema = z.object({
     page: z.coerce.number().int().positive().default(1),

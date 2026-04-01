@@ -1,96 +1,89 @@
 import SectionService from '../../services/section.service.js';
 
 class SectionController {
-    prompt;
-    ss;
-
-    constructor(prompt) {
-        this.prompt = prompt;
-        this.ss = new SectionService();
+    constructor() {
+        this.sectionService = new SectionService();
+        this.addSection = this.addSection.bind(this);
+        this.getSectionInfo = this.getSectionInfo.bind(this);
+        this.updateSection = this.updateSection.bind(this);
+        this.removeSection = this.removeSection.bind(this);
+        this.getAllSections = this.getAllSections.bind(this);
     }
 
-    async getSectionInfo() {
-        const selection = await this.prompt.askInt('Enter the section ID: ');
-        return await this.ss.getSectionInfo(selection);
-    }
-
-    async viewSectionsByCourse() {
-        const course_code = await this.prompt.askCourseCode('Enter the course code: ');
-        return await this.ss.getSectionsByCourse(course_code);
-    }
-
-    async viewSectionsBySemester() {
-        const term = await this.prompt.askRequiredText('Enter the term: ');
-        const year = await this.prompt.askInt('Enter the year: ');
-        return await this.ss.getSectionsBySemester(term, year);
-    }
-
-    async addSection() {
-        const course_code = await this.prompt.askCourseCode('Enter course code (I.E., CMSC100): ');
-        const term = await this.prompt.askRequiredText('Enter semester term (I.E., Fall, Spring, Summer): ');
-        const year = await this.prompt.askInt('Enter semester year (I.E., 2026): ');
-        const professor_email = await this.prompt.askEmail('Enter professor email (must already exist in system): ');
-        const capacity = await this.prompt.askInt('Enter section capacity (Integer): ');
-        const days = await this.prompt.askOptionalText('Enter meeting days (I.E., MWF, TR, or leave blank for async): ');
-        const start_time = (await this.prompt.askOptionalText('Enter start time (HH:MM:SS, 24-hour format, or leave blank for async): '));
-        const end_time = (await this.prompt.askOptionalText('Enter end time (HH:MM:SS, 24-hour format, or leave blank for async): '));
-
-        await this.ss.addSection(course_code, term, year, professor_email, capacity, days, start_time, end_time);
-    }
-
-    async updateSection() {
-        const section_id = Number(await this.prompt.askInt('Enter section ID to update: '));
-
-        const selection = (
-            await this.prompt.askMenuSelection('What would you like to change?\n' + '1. Professor\n2. Capacity\n3. Days\n4. Start Time\n5. End Time\n\n' + 'Enter all numbers (e.g., 135): ')
-        ).trim();
-
-        let updates = {};
-
-        const handlers = {
-            1: async () => {
-                updates.professor_email = await this.prompt.askEmail('Enter new professor email: ');
-            },
-            2: async () => {
-                updates.capacity = Number(await this.prompt.askInt('Enter new capacity: '));
-            },
-            3: async () => {
-                updates.days = await this.prompt.askOptionalText('Enter new days (I.E., MWF, TR) or leave blank for async: ');
-            },
-            4: async () => {
-                updates.start_time = (await this.prompt.askOptionalText('Enter start time (HH:MM:SS or blank): '));
-            },
-            5: async () => {
-                updates.end_time = (await this.prompt.askOptionalText('Enter end time (HH:MM:SS or blank): '));
-            },
-        };
-
-        for (let char of selection) {
-            if (handlers[char]) {
-                await handlers[char]();
-            }
-        }
-
-        await this.ss.updateSection(section_id, updates);
-
-        console.log('\nSection updated successfully.\n');
-    }
-
-    async removeSection() {
-        const section_id = await this.prompt.askInt('Enter section ID to remove: ');
-
-        const confirm = (await this.prompt.askText('Are you sure you want to delete this section? (yes/no): ')).toLowerCase();
-
-        if (confirm !== 'yes') {
-            console.log('\nOperation cancelled.\n');
-            return;
-        }
+    // Express Add Section Method
+    async addSection(req, res, next) {
         try {
-            await this.ss.removeSection(section_id);
+            const { courseId } = req.params;
+            const { semesterId, professorId, capacity, days, startTime, endTime } = req.body;
 
-            console.log('\nSection removed successfully.\n');
+            const section = await this.sectionService.addSection(courseId, semesterId, professorId, capacity, days, startTime, endTime);
+
+            return res.status(201).json({
+                message: 'Section added successfully.',
+                section: section.toObject(),
+            });
         } catch (err) {
-            console.error('Invalid Section ID Error', err);
+            next(err);
+        }
+    }
+
+    // Express Get Section Info Method
+    async getSectionInfo(req, res, next) {
+        try {
+            const { sectionId } = req.params;
+            const section = await this.sectionService.getSectionInfo(sectionId);
+            return res.status(200).json({
+                message: 'Section info retrieved successfully.',
+                section: section.toObject(),
+            });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    // Express Get All Sections Method
+    async getAllSections(req, res, next) {
+        try {
+            const { courseId } = req.params;
+            const { page = 1, limit = 10, search = '', semesterId = null, professorId = null } = req.query;
+            const result = await this.sectionService.getAllSections(page, limit, search, courseId ?? null, semesterId, professorId);
+
+            return res.status(200).json({
+                sections: result.data,
+                meta: result.meta,
+            });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    // Express Update Section Method
+    async updateSection(req, res, next) {
+        try {
+            const { sectionId } = req.params;
+            const { semesterId, professorId, capacity, days, startTime, endTime } = req.body;
+
+            const section = await this.sectionService.updateSection(sectionId, { semesterId, professorId, capacity, days, startTime, endTime });
+
+            return res.status(200).json({
+                message: 'Section updated successfully.',
+                section: section.toObject(),
+            });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    // Express Remove Section Method
+    async removeSection(req, res, next) {
+        try {
+            const { sectionId } = req.params;
+            await this.sectionService.removeSection(sectionId);
+            return res.status(200).json({
+                message: 'Section removed successfully.',
+            });
+        } catch (err) {
+            next(err);
         }
     }
 }

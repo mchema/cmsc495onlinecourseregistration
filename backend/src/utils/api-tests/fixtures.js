@@ -43,5 +43,19 @@ export function createTestContext() {
                 courseCredits: 4,
             },
         },
+        sectionTest: {
+            create: {
+                capacity: 24,
+                days: 'MW',
+                startTime: '09:00',
+                endTime: '10:15',
+            },
+            update: {
+                capacity: 18,
+                days: 'TR',
+                startTime: '13:30',
+                endTime: '14:45',
+            },
+        },
     };
 }

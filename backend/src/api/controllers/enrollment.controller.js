@@ -1,13 +1,24 @@
 import EnrollmentService from '../../services/enrollment.service.js';
 
 class EnrollmentController {
-    prompt;
-    es;
-
-    constructor(prompt) {
-        this.prompt = prompt;
-        this.es = new EnrollmentService();
+    constructor() {
+        this.enrollmentService = new EnrollmentService();
+        this.addEnrollment = this.addEnrollment.bind(this);
+        this.getEnrollmentInfo = this.getEnrollmentInfo.bind(this);
+        this.removeEnrollment = this.removeEnrollment.bind(this);
     }
+
+    // Express Add Enrollment Method
+    async addEnrollment(req, res, next) {
+
+        try {
+            const { studentId, sectionId, status } = req.body;
+        } catch(err) {
+            next(err);
+        }
+
+    }
+
 
     async enrollInSection(currentUser) {
         const section_id = Number(await this.prompt.askInt('Enter section ID to enroll in: '));

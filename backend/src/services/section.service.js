@@ -1,144 +1,139 @@
 import * as db from '../db/connection.js';
 import * as Errors from '../errors/index.js';
+import Section from '../domain/section.js';
 
 class SectionService {
     constructor() {}
 
-    async getSectionInfo(section_id) {
-        const results = await db.query('SELECT * FROM sections WHERE section_id = ?', [section_id]);
+    async ensureSemesterExists(semesterId) {
+        const rows = await db.query('SELECT semester_id FROM semesters WHERE semester_id = ?', [semesterId]);
 
-        if (results.length === 0) {
-            throw new Errors.NotFoundError('Section not found.');
-        }
-
-        return results[0];
-    }
-
-    async getSectionsByCourse(course_code) {
-        const course = await db.query('SELECT course_id FROM courses WHERE course_code = ?', [course_code]);
-
-        if (course.length === 0) {
-            throw new Errors.NotFoundError('Course not found.');
-        }
-
-        const results = await db.query('SELECT * FROM sections WHERE course_id = ?', [course[0].course_id]);
-
-        return results;
-    }
-
-    async getSectionsBySemester(term, year) {
-        const semester_id = await this.getSemesterId(term, year);
-
-        const results = await db.query('SELECT * FROM sections WHERE semester_id = ?', [semester_id]);
-
-        return results;
-    }
-
-    async addSection(course_code, term, year, professorEmail, capacity, days, start_time, end_time) {
-        const course = await db.query('SELECT course_id FROM courses WHERE course_code = ?', [course_code]);
-
-        if (course.length === 0) {
-            throw new Errors.NotFoundError('Course not found.');
-        }
-
-        const semester_id = await this.getSemesterId(term, year);
-        const professor_id = await this.getProfessorIdByEmail(professorEmail);
-
-        await db.query('INSERT INTO sections (course_id, semester_id, professor_id, capacity, days, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?, ?)', [course[0].course_id, semester_id, professor_id, capacity, days || null, start_time, end_time]);
-
-        return null;
-    }
-
-    async updateSection(section_id, updatedData) {
-        const exists = await this.sectionExists(section_id);
-
-        if (!exists) {
-            throw new Errors.NotFoundError('Section not found.');
-        }
-
-        let fields = [];
-        let values = [];
-
-        if (updatedData.professor_email) {
-            const professor_id = await this.getProfessorIdByEmail(updatedData.professor_email);
-            fields.push('professor_id = ?');
-            values.push(professor_id);
-        }
-
-        if (updatedData.capacity !== undefined) {
-            fields.push('capacity = ?');
-            values.push(updatedData.capacity);
-        }
-
-        if (updatedData.days !== undefined) {
-            fields.push('days = ?');
-            values.push(updatedData.days || null);
-        }
-
-        if (updatedData.start_time !== undefined) {
-            fields.push('start_time = ?');
-            values.push(updatedData.start_time);
-        }
-
-        if (updatedData.end_time !== undefined) {
-            fields.push('end_time = ?');
-            values.push(updatedData.end_time);
-        }
-
-        if (fields.length === 0) {
-            return null;
-        }
-
-        const sql = 'UPDATE sections SET ' + fields.join(', ') + ' WHERE section_id = ?';
-        values.push(section_id);
-
-        await db.query(sql, values);
-
-        return null;
-    }
-
-    async removeSection(section_id) {
-        const exists = await this.sectionExists(section_id);
-
-        if (!exists) {
-            throw new Errors.NotFoundError('Section not found.');
-        }
-
-        await db.query('DELETE FROM sections WHERE section_id = ?', [section_id]);
-
-        return null;
-    }
-
-    async getSemesterId(term, year) {
-        const result = await db.query('SELECT semester_id FROM semesters WHERE term = ? AND year = ?', [term, year]);
-
-        if (result.length === 0) {
+        if (rows.length === 0) {
             throw new Errors.NotFoundError('Semester not found.');
         }
-
-        return result[0].semester_id;
     }
 
-    async getProfessorIdByEmail(email) {
-        const user = await db.query('SELECT user_id FROM users WHERE email = ?', [email]);
+    async ensureProfessorExists(professorId) {
+        const rows = await db.query('SELECT professor_id FROM professors WHERE professor_id = ?', [professorId]);
 
-        if (user.length === 0) {
-            throw new Errors.NotFoundError('User not found.');
+        if (rows.length === 0) {
+            throw new Errors.NotFoundError('Professor not found.');
         }
-
-        const professor = await db.query('SELECT professor_id FROM professors WHERE user_id = ?', [user[0].user_id]);
-
-        if (professor.length === 0) {
-            throw new Errors.NotFoundError('User is not a professor.');
-        }
-
-        return professor[0].professor_id;
     }
 
-    async sectionExists(section_id) {
-        const result = await db.query('SELECT section_id FROM sections WHERE section_id = ?', [section_id]);
+    async getSectionInfo(sectionId) {
+        const rows = await db.query('SELECT * FROM sections WHERE section_id = ?', [sectionId]);
 
-        return result.length > 0;
+        if (rows.length === 0) {
+            throw new Errors.NotFoundError('Section not found.');
+        }
+
+        return Section.fromPersistence(rows[0]);
+    }
+
+    async getAllSections(page, limit, search, courseId = null, semesterId = null, professorId = null) {
+        const normalizedPage = Number.isInteger(Number(page)) && Number(page) > 0 ? Number(page) : 1;
+        const normalizedLimit = Number.isInteger(Number(limit)) && Number(limit) > 0 ? Math.min(Number(limit), 100) : 10;
+        const offset = (normalizedPage - 1) * normalizedLimit;
+
+        let where = [];
+        let params = [];
+
+        if (search) {
+            where.push('(section_id LIKE ? OR professor_id LIKE ?)');
+            params.push('%' + search + '%', '%' + search + '%');
+        }
+
+        if (courseId) {
+            where.push('course_id = ?');
+            params.push(courseId);
+        }
+
+        if (semesterId) {
+            where.push('semester_id = ?');
+            params.push(semesterId);
+        }
+
+        if (professorId) {
+            where.push('professor_id = ?');
+            params.push(professorId);
+        }
+
+        const whereClause = where.length > 0 ? ' WHERE ' + where.join(' AND ') : '';
+        const countResult = await db.query('SELECT COUNT(*) AS count FROM sections' + whereClause, params);
+        const rows = await db.query('SELECT * FROM sections' + whereClause + ' ORDER BY section_id ASC LIMIT ? OFFSET ?', [...params, normalizedLimit, offset]);
+
+        const results = rows.map((row) => Section.fromPersistence(row));
+
+        return {
+            data: results.map((section) => section.toObject()),
+            meta: {
+                page: normalizedPage,
+                limit: normalizedLimit,
+                total: countResult[0].count,
+                totalPages: Math.ceil(countResult[0].count / normalizedLimit),
+            },
+        };
+    }
+
+    async addSection(courseId, semesterId, professorId, capacity, days, start_time, end_time) {
+        const course = await db.query('SELECT course_id FROM courses WHERE course_id = ?', [courseId]);
+
+        if (course.length === 0) {
+            throw new Errors.NotFoundError('Course not found.');
+        }
+
+        await this.ensureSemesterExists(semesterId);
+        await this.ensureProfessorExists(professorId);
+
+        const result = await db.query('INSERT INTO sections (course_id, semester_id, professor_id, capacity, days, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?, ?)', [course[0].course_id, semesterId, professorId, capacity, days || null, start_time, end_time]);
+        const rows = await db.query('SELECT * FROM sections WHERE section_id = ?', [result.insertId]);
+
+        if (rows.length === 0) {
+            throw new Errors.InternalServerError('Failed to retrieve newly created section.');
+        }
+
+        return Section.fromPersistence(rows[0]);
+    }
+
+    async updateSection(sectionId, updatedData) {
+        const { semesterId, professorId, capacity, days, startTime, endTime } = updatedData;
+        const existingRows = await db.query('SELECT * FROM sections WHERE section_id = ?', [sectionId]);
+
+        if (existingRows.length === 0) {
+            throw new Errors.NotFoundError('Section not found.');
+        }
+
+        await this.ensureSemesterExists(semesterId);
+        await this.ensureProfessorExists(professorId);
+
+        const existing = existingRows[0];
+
+        await db.query('UPDATE sections SET course_id = ?, semester_id = ?, professor_id = ?, capacity = ?, days = ?, start_time = ?, end_time = ? WHERE section_id = ?', [existing.course_id, semesterId, professorId, capacity, days, startTime ?? null, endTime ?? null, sectionId]);
+
+        const rows = await db.query('SELECT * FROM sections WHERE section_id = ?', [sectionId]);
+
+        if (rows.length === 0) {
+            throw new Errors.InternalServerError('Failed to retrieve existing section data.');
+        }
+
+        return Section.fromPersistence(rows[0]);
+    }
+
+    async removeSection(sectionId) {
+        const exists = await db.query('SELECT COUNT(*) as count FROM sections WHERE section_id = ?', [sectionId]);
+
+        if (exists[0].count === 0) {
+            throw new Errors.NotFoundError('Section not found.');
+        }
+
+        const dependentEnrollments = await db.query('SELECT COUNT(*) AS count FROM enrollments WHERE section_id = ?', [sectionId]);
+
+        if (dependentEnrollments[0].count > 0) {
+            throw new Errors.ValidationError('Cannot delete a section that has enrollments. Remove or archive its enrollments first.');
+        }
+
+        await db.query('DELETE FROM sections WHERE section_id = ?', [sectionId]);
     }
 }
 
