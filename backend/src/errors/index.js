@@ -10,6 +10,7 @@ export { default as ValidationError } from './validation/validation.error.js';
 export { default as NotFoundError } from './common/notFound.error.js';
 export { default as DuplicateEntryError } from './common/duplicateEntry.error.js';
 export { default as InvalidSelectionError } from './common/invalidSelection.error.js';
+export { default as InternalServerError } from './common/internalServer.error.js';
 
 export { default as CourseError } from './course/course.error.js';
 export { default as CourseNotFoundError } from './course/courseNotFound.error.js';
@@ -21,4 +22,8 @@ export { default as AlreadyEnrolledError } from './enrollment/alreadyEnrolled.er
 export { default as SectionError } from './section/section.error.js';
 export { default as SectionFullError } from './section/sectionFull.error.js';
 
+export { default as PrerequisiteError } from './prerequisite/prerequisite.error.js';
+export { default as DuplicatePrerequisiteError } from './prerequisite/duplicatePrerequisite.error.js';
+export { default as PrerequisiteCycleError } from './prerequisite/prerequisiteCycle.error.js';
+export { default as PrerequisiteRelationshipNotFoundError } from './prerequisite/prerequisiteRelationshipNotFound.error.js';
 export { default as PrerequisiteNotMetError } from './prerequisite/prerequisiteNotMet.error.js';

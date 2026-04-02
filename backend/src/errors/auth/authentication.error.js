@@ -1,10 +1,11 @@
-import AppError from '../base/app.error.js'
+import AppError from '../base/app.error.js';
 
 export default class AuthenticationError extends AppError {
-    constructor(message = 'Authentication failed') {
+    constructor(message = 'Authentication failed.', details = null) {
         super(message, {
             code: 'AUTHENTICATION_ERROR',
-            status: 401
+            status: 401,
+            details,
         });
     }
 }
