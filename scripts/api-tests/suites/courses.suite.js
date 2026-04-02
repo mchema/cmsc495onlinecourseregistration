@@ -1,9 +1,10 @@
 import { assertEqual, assertStatus, assertTruthy } from '../assert.js';
 import { authHeaders } from '../http.js';
 import { logPass } from '../logger.js';
-import * as db from '../../../db/connection.js';
 
 export async function runCoursesSuite(ctx, request) {
+    const sectionRefs = await getSectionRefs(request);
+
     const invalidListQuery = await request('/api/courses?page=-1&limit=0');
     assertStatus(invalidListQuery, 400, 'GET /api/courses should reject invalid pagination values');
     logPass('GET /api/courses rejects invalid pagination values');
@@ -219,7 +220,7 @@ export async function runCoursesSuite(ctx, request) {
     const guardedCourseId = createGuardedCourse.body?.course?.course_id;
     assertTruthy(guardedCourseId, 'Guarded course id should be present', createGuardedCourse.body);
 
-    const sectionId = await createDependentSection(guardedCourseId);
+    const sectionId = await createDependentSection(request, ctx.adminAuth.token, guardedCourseId, sectionRefs);
 
     const deleteGuardedCourse = await request(`/api/courses/${guardedCourseId}`, {
         method: 'DELETE',
@@ -228,7 +229,11 @@ export async function runCoursesSuite(ctx, request) {
     assertStatus(deleteGuardedCourse, 400, 'DELETE /api/courses/:courseId should reject deletion when sections exist');
     logPass('DELETE /api/courses/:courseId rejects deletion when sections exist');
 
-    await db.query('DELETE FROM sections WHERE section_id = ?', [sectionId]);
+    const deleteDependentSection = await request(`/api/sections/${sectionId}`, {
+        method: 'DELETE',
+        headers: authHeaders(ctx.adminAuth.token),
+    });
+    assertStatus(deleteDependentSection, 200, 'DELETE /api/sections/:sectionId should remove dependent section during course cleanup');
 
     const deleteGuardedCourseAfterCleanup = await request(`/api/courses/${guardedCourseId}`, {
         method: 'DELETE',
@@ -249,14 +254,39 @@ export async function runCoursesSuite(ctx, request) {
     logPass('GET /api/courses/:courseId returns 404 after deletion');
 }
 
-async function createDependentSection(courseId) {
-    const semesters = await db.query('SELECT semester_id FROM semesters ORDER BY semester_id ASC LIMIT 1');
-    const professors = await db.query('SELECT professor_id FROM professors ORDER BY professor_id ASC LIMIT 1');
+async function createDependentSection(request, adminToken, courseId, refs) {
+    const res = await request(`/api/courses/${courseId}/sections`, {
+        method: 'POST',
+        headers: authHeaders(adminToken),
+        body: JSON.stringify({
+            semesterId: refs.semesterId,
+            professorId: refs.professorId,
+            capacity: 25,
+            days: 'MW',
+            startTime: '09:00',
+            endTime: '10:15',
+        }),
+    });
 
-    assertTruthy(semesters[0]?.semester_id, 'Test data requires at least one semester seed row', semesters);
-    assertTruthy(professors[0]?.professor_id, 'Test data requires at least one professor seed row', professors);
+    assertStatus(res, 201, 'POST /api/courses/:courseId/sections should create a dependent section for course delete protection');
+    assertTruthy(res.body?.section?.section_id, 'Dependent section id should be present', res.body);
 
-    const result = await db.query('INSERT INTO sections (course_id, semester_id, professor_id, capacity, days, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?, ?)', [courseId, semesters[0].semester_id, professors[0].professor_id, 25, 'MW', '09:00:00', '10:15:00']);
+    return res.body.section.section_id;
+}
 
-    return result.insertId;
+async function getSectionRefs(request) {
+    const res = await request('/api/sections?page=1&limit=100');
+
+    assertStatus(res, 200, 'GET /api/sections should provide seed section data for course tests');
+    const sections = Array.isArray(res.body?.sections) ? res.body.sections : [];
+    const sectionWithProfessor = sections.find((section) => section.professor_id);
+    const semesterIds = [...new Set(sections.map((section) => section.semester_id).filter(Boolean))];
+
+    assertTruthy(sectionWithProfessor?.professor_id, 'Course tests require at least one existing section with a professor id', res.body);
+    assertTruthy(semesterIds[0], 'Course tests require at least one existing semester id from section data', res.body);
+
+    return {
+        semesterId: semesterIds[0],
+        professorId: sectionWithProfessor.professor_id,
+    };
 }

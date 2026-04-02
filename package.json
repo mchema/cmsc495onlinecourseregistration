@@ -39,7 +39,7 @@
         "db:reset": "node ./scripts/dbReset.js",
         "courses:browse": "node ./scripts/browseCourses.js",
         "start": "node ./backend/src/server.js",
-        "test": "node ./backend/src/apiTestRunner.js",
+        "test": "node ./scripts/apiTestRunner.js",
         "dev": "vite",
         "build": "tsc -b && vite build",
         "lint": "eslint .",

@@ -5,9 +5,11 @@ import { logFail } from './logger.js';
 import { runAuthSuite, runPasswordSuite, runUpdateUserInfoSuite } from './auth.js';
 import { runAdminReadWriteSuite, runAdminUsersSuite, runPostPasswordAdminChecks } from './suites/adminUsers.suite.js';
 import { runCoursesSuite } from './suites/courses.suite.js';
+import { runEnrollmentsSuite } from './suites/enrollments.suite.js';
+import { runPrerequisitesSuite } from './suites/prerequisites.suite.js';
 import { runSectionsSuite } from './suites/sections.suite.js';
 import { startServer, stopServer, waitForServer } from './serverLifecycle.js';
-import { close as closeDb } from '../../db/connection.js';
+import { close as closeDb } from '../../backend/src/db/connection.js';
 
 export async function runApiTests() {
     const ctx = createTestContext();
@@ -31,10 +33,12 @@ export async function runApiTests() {
         await runAdminReadWriteSuite(ctx, request);
         if (RUN_COURSE_SUITE !== 'false') {
             await runCoursesSuite(ctx, request);
+            await runPrerequisitesSuite(ctx, request);
         }
         if (RUN_SECTION_SUITE !== 'false') {
             await runSectionsSuite(ctx, request);
         }
+        await runEnrollmentsSuite(ctx, request);
         console.log('All tests passed.');
     } catch (err) {
         const serverLogs = typeof child?.getBufferedLogs === 'function' ? child.getBufferedLogs().trim() : '';
