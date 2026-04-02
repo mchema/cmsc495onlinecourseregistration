@@ -4,56 +4,72 @@ class EnrollmentController {
     constructor() {
         this.enrollmentService = new EnrollmentService();
         this.addEnrollment = this.addEnrollment.bind(this);
+        this.updateEnrollment = this.updateEnrollment.bind(this);
         this.getEnrollmentInfo = this.getEnrollmentInfo.bind(this);
         this.removeEnrollment = this.removeEnrollment.bind(this);
     }
 
     // Express Add Enrollment Method
+    // Missing Prerequisite Check, Section Capacity Check, and Waitlist Handling for now - will be added in future iterations
     async addEnrollment(req, res, next) {
-
         try {
-            const { studentId, sectionId, status } = req.body;
-        } catch(err) {
+            const { studentId, sectionId, accessCode } = req.body;
+
+            const enrollment = await this.enrollmentService.addEnrollment(studentId, sectionId, req.user, accessCode);
+
+            return res.status(201).json({
+                message: 'Enrollment added successfully.',
+                enrollment,
+            });
+        } catch (err) {
             next(err);
         }
-
     }
 
+    // Express update Enrollment Method
+    async updateEnrollment(req, res, next) {
+        try {
+            const { enrollmentId } = req.params;
+            const { status, accessCode } = req.body;
 
-    async enrollInSection(currentUser) {
-        const section_id = Number(await this.prompt.askInt('Enter section ID to enroll in: '));
-        const student_id = await this.es.getStudentIdByEmail(currentUser.getEmail());
-        const enrollment = await this.es.getEnrollment(student_id, section_id);
-        let accessCode = null;
-        if (enrollment && enrollment.status === 'waitlisted') {
-            accessCode = await this.prompt.askQuestion('Enter professor access code if applicable, or press Enter to continue: ');
+            const enrollment = await this.enrollmentService.updateEnrollment(enrollmentId, status, req.user, accessCode);
+
+            return res.status(200).json({
+                message: 'Enrollment updated successfully.',
+                enrollment,
+            });
+        } catch (err) {
+            next(err);
         }
-
-        await this.es.enrollInSection(currentUser.getEmail(), section_id, accessCode);
-
-        console.log('\nSuccessfully enrolled in section.\n');
     }
 
-    async dropEnrollment(currentUser) {
-        const section_id = Number(await this.prompt.askInt('Enter section ID to drop: '));
-
-        await this.es.dropEnrollment(currentUser.getEmail(), section_id);
-
-        console.log('\nEnrollment dropped successfully.\n');
+    // Express Get Enrollment Info Method
+    async getEnrollmentInfo(req, res, next) {
+        try {
+            const { enrollmentId } = req.params;
+            const enrollment = await this.enrollmentService.getEnrollmentInfo(enrollmentId, req.user);
+            return res.status(200).json({
+                message: 'Enrollment info retrieved successfully.',
+                enrollment,
+            });
+        } catch (err) {
+            next(err);
+        }
     }
 
-    async viewMyEnrollments(currentUser) {
-        const enrollments = await this.es.getStudentEnrollments(currentUser.getEmail());
+    // Express Remove Enrollment Method
+    async removeEnrollment(req, res, next) {
+        try {
+            const { enrollmentId } = req.params;
 
-        console.log('\nYour Enrollments:\n', enrollments, '\n');
-    }
+            await this.enrollmentService.removeEnrollment(enrollmentId, req.user);
 
-    async viewSectionRoster() {
-        const section_id = Number(await this.prompt.askInt('Enter section ID to view roster: '));
-
-        const roster = await this.es.getSectionRoster(section_id);
-
-        console.log('\nSection Roster:\n', roster, '\n');
+            return res.status(200).json({
+                message: 'Enrollment removed successfully.',
+            });
+        } catch (err) {
+            next(err);
+        }
     }
 }
 

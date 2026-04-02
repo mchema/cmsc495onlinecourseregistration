@@ -73,3 +73,11 @@ export const getAllSectionsQuerySchema = paginationQuerySchema.extend({
     semesterId: z.coerce.number().int().positive().optional(),
     professorId: z.coerce.number().int().positive().optional(),
 });
+
+export const generateAccessCodesBodySchema = z.object({
+    numCodes: z.coerce.number().int().positive().max(25).default(3),
+});
+
+export const revokeAccessCodesBodySchema = z.object({
+    codesToRevoke: z.array(z.string().trim().min(1)).min(1),
+});

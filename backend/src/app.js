@@ -5,10 +5,11 @@ import morgan from 'morgan';
 
 import authRoutes from './api/routes/auth.routes.js';
 import courseRoutes from './api/routes/course.routes.js';
-//import enrollmentRoutes from './api/routes/enrollment.routes.js';
-//import prerequisiteRoutes from './api/routes/prerequisite.routes.js';
+import enrollmentRoutes from './api/routes/enrollment.routes.js';
+import prerequisiteRoutes from './api/routes/prerequisite.routes.js';
 import sectionRoutes from './api/routes/section.routes.js';
 import adminRoutes from './api/routes/admin.routes.js';
+import semesterRoutes from './api/routes/semester.routes.js';
 
 const app = express();
 
@@ -26,9 +27,10 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api', sectionRoutes);
 app.use('/api/courses', courseRoutes);
-//app.use('/api/enrollments', enrollmentRoutes);
-//app.use('/api/prerequisites', prerequisiteRoutes);
+app.use('/api/enrollments', enrollmentRoutes);
+app.use('/api/prerequisites', prerequisiteRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/semesters', semesterRoutes);
 
 // 404 Handler
 app.use((req, res) => {
@@ -37,11 +39,20 @@ app.use((req, res) => {
 
 // Central Error handler
 app.use((err, req, res, next) => {
-    //console.error(err);
-
-    res.status(err.statusCode || err.status || 500).json({
+    const status = err.statusCode || err.status || 500;
+    const payload = {
         error: err.message || 'Internal Server Error',
-    });
+    };
+
+    if (err.code) {
+        payload.code = err.code;
+    }
+
+    if (err.details) {
+        payload.details = err.details;
+    }
+
+    res.status(status).json(payload);
 });
 
 export default app;

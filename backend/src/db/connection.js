@@ -2,13 +2,24 @@ import mysql from 'mysql2';
 import dotenv from 'dotenv';
 dotenv.config({ quiet: true });
 
+function typeCastJson(field, next) {
+    if (field.type !== 'JSON') {
+        return next();
+    }
+
+    const value = field.string('utf8');
+    return value === null ? null : JSON.parse(value);
+}
+
 let con = mysql.createPool({
     host: process.env.MYSQL_HOST,
     port: process.env.MYSQL_PORT,
     user: process.env.MYSQL_USER,
     password: process.env.MYSQL_PASSWORD,
     database: process.env.MYSQL_DATABASE,
+    multipleStatements: true,
     connectionLimit: 10,
+    typeCast: typeCastJson,
 });
 
 // Standard query through Pool

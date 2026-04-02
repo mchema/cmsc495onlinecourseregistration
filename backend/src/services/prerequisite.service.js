@@ -1,130 +1,69 @@
 import * as db from '../db/connection.js';
 import * as Errors from '../errors/index.js';
 
-export default class PrerequisiteService {
-    async getCourseByCode(courseCode) {
-        const results = await db.query('SELECT course_id, course_code, title FROM courses WHERE course_code = ?', [courseCode]);
+class PrerequisiteService {
+    constructor() {}
 
-        if (!results || results.length === 0) {
-            throw new Errors.CourseNotFoundError('Invalid Course Code.');
+    async getPrerequisites(courseId) {
+        const courseExists = await db.query('SELECT COUNT(*) as count FROM courses WHERE course_id = ?', [courseId]);
+        if (Number(courseExists[0].count) === 0) {
+            throw new Errors.CourseNotFoundError(courseId);
         }
 
-        return results[0];
-    }
-
-    async getPrerequisitesForCourse(courseCode) {
-        const course = await this.getCourseByCode(courseCode);
-
-        const results = await db.query('SELECT c.course_id, c.course_code, c.title FROM prerequisites p INNER JOIN courses c ON p.prerequisite_course_id = c.course_id WHERE p.course_id = ? ORDER BY c.course_code ASC', [course.course_id]);
+        const rows = await db.query('SELECT c.course_id, c.course_code, c.title FROM prerequisites p INNER JOIN courses c ON p.prerequisite_course_id = c.course_id WHERE p.course_id = ? ORDER BY c.course_code ASC', [courseId]);
 
         return {
-            course,
-            prerequisites: results,
-        };
-    }
-
-    async addPrerequisite(courseCode, prerequisiteCourseCode) {
-        const course = await this.getCourseByCode(courseCode);
-        const prerequisite = await this.getCourseByCode(prerequisiteCourseCode);
-
-        if (course.course_id === prerequisite.course_id) {
-            throw new Errors.InvalidSelectionError('A course cannot be a prerequisite of itself.');
-        }
-
-        const existing = await db.query('SELECT 1 FROM prerequisites WHERE prerequisite_course_id = ? AND course_id = ? LIMIT 1 ', [prerequisite.course_id, course.course_id]);
-
-        if (existing.length > 0) {
-            throw new Errors.DuplicateEntryError('Prerequisite already exists.');
-        }
-
-        await this.ensureNoCycle(prerequisite.course_id, course.course_id);
-
-        await db.query('INSERT INTO prerequisites (prerequisite_course_id, course_id) VALUES (?, ?)', [prerequisite.course_id, course.course_id]);
-
-        return {
-            course,
-            prerequisite,
+            data: rows.map((row) => ({
+                courseId: row.course_id,
+                courseCode: row.course_code,
+                title: row.title,
+            })),
         };
     }
 
-    async removePrerequisite(courseCode, prerequisiteCourseCode) {
-        const course = await this.getCourseByCode(courseCode);
-        const prerequisite = await this.getCourseByCode(prerequisiteCourseCode);
-
-        const existing = await db.query('SELECT 1 FROM prerequisites WHERE prerequisite_course_id = ? AND course_id = ? LIMIT 1', [prerequisite.course_id, course.course_id]);
-
-        if (existing.length === 0) {
-            throw new Errors.InvalidSelectionError('Prerequisite not found.');
+    async addPrerequisite(courseId, prerequisiteId) {
+        const courseExists = await db.query('SELECT COUNT(*) AS count FROM courses WHERE course_id = ?', [courseId]);
+        if (courseExists[0].count === 0) {
+            throw new Errors.CourseNotFoundError(courseId);
         }
 
-        await db.query('DELETE FROM prerequisites WHERE prerequisite_course_id = ? AND course_id = ?', [prerequisite.course_id, course.course_id]);
+        const prerequisiteExists = await db.query('SELECT COUNT(*) AS count FROM courses WHERE course_id = ?', [prerequisiteId]);
+        if (prerequisiteExists[0].count === 0) {
+            throw new Errors.CourseNotFoundError(prerequisiteId);
+        }
+
+        const existingRelationship = await db.query('SELECT COUNT(*) AS count FROM prerequisites WHERE course_id = ? AND prerequisite_course_id = ?', [courseId, prerequisiteId]);
+        if (existingRelationship[0].count > 0) {
+            throw new Errors.DuplicatePrerequisiteError(courseId, prerequisiteId);
+        }
+
+        if (courseId === prerequisiteId) {
+            throw new Errors.ValidationError('A course cannot be a prerequisite of itself.');
+        }
+
+        await this.ensureNoCycle(prerequisiteId, courseId);
+        try {
+            await db.query('INSERT INTO prerequisites (course_id, prerequisite_course_id) VALUES (?, ?)', [courseId, prerequisiteId]);
+        } catch (err) {
+            if (err.code === 'ER_NO_REFERENCED_ROW_2') {
+                throw new Errors.CourseNotFoundError('One of the courses specified does not exist.');
+            }
+            throw new Errors.DatabaseError('Failed to add prerequisite relationship.', err);
+        }
 
         return {
-            course,
-            prerequisite,
+            courseId: courseId,
+            prerequisiteId: prerequisiteId,
         };
     }
 
-    async validatePrerequisiteChain(courseCode) {
-        const course = await this.getCourseByCode(courseCode);
-
-        const allEdges = await db.query('SELECT prerequisite_course_id, course_id FROM prerequisites', []);
-
-        const adjacency = new Map();
-
-        for (const edge of allEdges) {
-            if (!adjacency.has(edge.course_id)) {
-                adjacency.set(edge.course_id, []);
-            }
-            adjacency.get(edge.course_id).push(edge.prerequisite_course_id);
+    async removePrerequisite(courseId, prerequisiteId) {
+        const prerequisiteExists = await db.query('SELECT COUNT(*) AS count FROM prerequisites WHERE course_id = ? AND prerequisite_course_id = ?', [courseId, prerequisiteId]);
+        if (Number(prerequisiteExists[0].count) === 0) {
+            throw new Errors.PrerequisiteRelationshipNotFoundError(courseId, prerequisiteId);
         }
 
-        const visited = new Set();
-        const visiting = new Set();
-        const chain = [];
-        let cycleDetected = false;
-
-        const dfs = (currentId) => {
-            if (visiting.has(currentId)) {
-                cycleDetected = true;
-                return;
-            }
-
-            if (visited.has(currentId) || cycleDetected) {
-                return;
-            }
-
-            visiting.add(currentId);
-
-            const prereqs = adjacency.get(currentId) || [];
-            for (const prereqId of prereqs) {
-                dfs(prereqId);
-            }
-
-            visiting.delete(currentId);
-            visited.add(currentId);
-            chain.push(currentId);
-        };
-
-        dfs(course.course_id);
-
-        if (cycleDetected) {
-            return {
-                valid: false,
-                message: 'Cycle detected in prerequisite chain for ' + course.course_code,
-            };
-        }
-
-        const chainDetails = chain.length <= 1 ? [] : await db.query('SELECT course_id, course_code, title FROM courses WHERE course_id IN (?)', [chain.filter((id) => id !== course.course_id)]);
-
-        chainDetails.sort((a, b) => a.course_code.localeCompare(b.course_code));
-
-        return {
-            valid: true,
-            course,
-            prerequisiteChain: chainDetails,
-            message: 'Prerequisite chain for '  + course.course_code +  ' is valid.',
-        };
+        await db.query('DELETE FROM prerequisites WHERE course_id = ? AND prerequisite_course_id = ?', [courseId, prerequisiteId]);
     }
 
     async ensureNoCycle(newPrerequisiteId, targetCourseId) {
@@ -171,7 +110,9 @@ export default class PrerequisiteService {
         };
 
         if (dfs(targetCourseId)) {
-            throw new Errors.ValidationError('This prerequisite relationship would create a cycle.');
+            throw new Errors.PrerequisiteCycleError(targetCourseId, newPrerequisiteId);
         }
     }
 }
+
+export default PrerequisiteService;

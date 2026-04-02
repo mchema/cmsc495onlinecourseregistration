@@ -1,75 +1,55 @@
 import PrerequisiteService from '../../services/prerequisite.service.js';
 
-export default class PrerequisiteController {
-    constructor(prompt, prerequisiteService = new PrerequisiteService()) {
-        this.prompt = prompt;
-        this.ps = prerequisiteService;
+class PrerequisiteController {
+    constructor() {
+        this.prerequisiteService = new PrerequisiteService();
+        this.getPrerequisites = this.getPrerequisites.bind(this);
+        this.addPrerequisite = this.addPrerequisite.bind(this);
+        this.deletePrerequisite = this.deletePrerequisite.bind(this);
     }
 
-    async viewPrerequisites() {
-        const courseCode = await this.prompt.askCourseCode('Enter course code to view prerequisites for (I.E., CMSC100): ');
-
-        const result = await this.ps.getPrerequisitesForCourse(courseCode);
-
-        if (result.prerequisites.length === 0) {
-            console.log('\n', result.course.course_code, ' - ', result.course.title, ' has no prerequisites.\n');
-            return result;
+    // Express Get Prerequisites Method
+    async getPrerequisites(req, res, next) {
+        try {
+            const courseId = req.params.courseId;
+            const result = await this.prerequisiteService.getPrerequisites(courseId);
+            return res.status(200).json({
+                message: 'Prerequisites retrieved successfully.',
+                data: result.data,
+            });
+        } catch (error) {
+            next(error);
         }
+    }
 
-        console.log('\nPrerequisites for ', result.course.course_code, ' - ', result.course.title, ': ');
-        for (const prereq of result.prerequisites) {
-            console.log('\n- ', prereq.course_code, ' - ', prereq.title);
+    // Express Add Prerequisite Method
+    async addPrerequisite(req, res, next) {
+        try {
+            const courseId = req.body.courseId;
+            const prerequisiteId = req.body.prerequisiteId;
+            const prerequisite = await this.prerequisiteService.addPrerequisite(courseId, prerequisiteId);
+            return res.status(201).json({
+                message: 'Prerequisite added successfully.',
+                prerequisite: prerequisite,
+            });
+        } catch (error) {
+            next(error);
         }
-        console.log('\n');
-
-        return result;
     }
 
-    async addPrerequisite() {
-        const courseCode = await this.prompt.askCourseCode('Enter course code that will receive the prerequisite (I.E., CMSC200): ');
+    // Express Delete Prerequisite Method
+    async deletePrerequisite(req, res, next) {
+        try {
+            const { courseId, prerequisiteId } = req.params;
 
-        const prerequisiteCourseCode = await this.prompt.askCourseCode('Enter prerequisite course code to add (I.E., CMSC100): ');
-
-        const result = await this.ps.addPrerequisite(courseCode, prerequisiteCourseCode);
-
-        console.log('\nAdded prerequisite', result.prerequisite.course_code, ' to ', result.course.course_code, 'successfully.\n');
-
-        return result;
-    }
-
-    async removePrerequisite() {
-        const courseCode = await this.prompt.askCourseCode('Enter course code to remove a prerequisite from (I.E., CMSC200): ');
-
-        const prerequisiteCourseCode = await this.prompt.askCourseCode('Enter prerequisite course code to remove (I.E., CMSC100): ');
-
-        const result = await this.ps.removePrerequisite(courseCode, prerequisiteCourseCode);
-
-        console.log('\nRemoved prerequisite ', result.prerequisite.course_code, ' from ', result.course.course_code, ' successfully.\n');
-
-        return result;
-    }
-
-    async validatePrerequisiteChain() {
-        const courseCode = await this.prompt.askCourseCode('Enter course code to validate prerequisite chain for (I.E., CMSC300): ');
-
-        const result = await this.ps.validatePrerequisiteChain(courseCode);
-
-        console.log('\n', result.message);
-
-        if (result.valid && result.prerequisiteChain) {
-            if (result.prerequisiteChain.length === 0) {
-                console.log('No prerequisite chain found.\n');
-            } else {
-                console.log('Courses in prerequisite chain:');
-                for (const course of result.prerequisiteChain) {
-                    console.log('- ', course.course_code, ' - ', course.title);
-                }
-                console.log('\n');
-            }
-        } else {
-            console.log('\n');
+            await this.prerequisiteService.removePrerequisite(courseId, prerequisiteId);
+            return res.status(200).json({
+                message: 'Prerequisite removed successfully.',
+            });
+        } catch (error) {
+            next(error);
         }
-
-        return result;
     }
 }
+
+export default PrerequisiteController;

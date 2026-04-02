@@ -8,6 +8,9 @@ class SectionController {
         this.updateSection = this.updateSection.bind(this);
         this.removeSection = this.removeSection.bind(this);
         this.getAllSections = this.getAllSections.bind(this);
+        this.getAccessCodes = this.getAccessCodes.bind(this);
+        this.generateAccessCodes = this.generateAccessCodes.bind(this);
+        this.revokeAccessCodes = this.revokeAccessCodes.bind(this);
     }
 
     // Express Add Section Method
@@ -20,7 +23,7 @@ class SectionController {
 
             return res.status(201).json({
                 message: 'Section added successfully.',
-                section: section.toObject(),
+                section: section,
             });
         } catch (err) {
             next(err);
@@ -34,7 +37,7 @@ class SectionController {
             const section = await this.sectionService.getSectionInfo(sectionId);
             return res.status(200).json({
                 message: 'Section info retrieved successfully.',
-                section: section.toObject(),
+                section: section,
             });
         } catch (err) {
             next(err);
@@ -67,7 +70,7 @@ class SectionController {
 
             return res.status(200).json({
                 message: 'Section updated successfully.',
-                section: section.toObject(),
+                section: section,
             });
         } catch (err) {
             next(err);
@@ -81,6 +84,49 @@ class SectionController {
             await this.sectionService.removeSection(sectionId);
             return res.status(200).json({
                 message: 'Section removed successfully.',
+            });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    // Express Get Section Access Codes Method
+    async getAccessCodes(req, res, next) {
+        try {
+            const { sectionId } = req.params;
+            const accessCodes = await this.sectionService.getAccessCodes(sectionId, req.user);
+            return res.status(200).json({
+                message: 'Section access codes retrieved successfully.',
+                accessCodes: accessCodes,
+            });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    // Express Generate More Access Codes Method
+    async generateAccessCodes(req, res, next) {
+        try {
+            const { sectionId } = req.params;
+            const { numCodes } = req.body ?? {};
+            const newAccessCodes = await this.sectionService.generateAccessCodes(sectionId, numCodes, req.user);
+            return res.status(200).json({
+                message: 'New access codes generated successfully.',
+                newAccessCodes: newAccessCodes,
+            });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    // Express Revoke Section Access Codes Method
+    async revokeAccessCodes(req, res, next) {
+        try {
+            const { sectionId } = req.params;
+            const { codesToRevoke } = req.body ?? {};
+            await this.sectionService.revokeAccessCodes(sectionId, codesToRevoke, req.user);
+            return res.status(200).json({
+                message: 'Access codes revoked successfully.',
             });
         } catch (err) {
             next(err);

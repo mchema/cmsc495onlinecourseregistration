@@ -7,8 +7,9 @@ class Section {
     #days;
     #start_time;
     #end_time;
+    #access_codes;
 
-    constructor({ section_id, course_id, semester_id, professor_id, capacity, days, start_time, end_time }) {
+    constructor({ section_id, course_id, semester_id, professor_id, capacity, days, start_time, end_time, access_codes }) {
         this.#section_id = section_id;
         this.#course_id = course_id;
         this.#semester_id = semester_id;
@@ -17,6 +18,7 @@ class Section {
         this.#days = days;
         this.#start_time = start_time;
         this.#end_time = end_time;
+        this.#access_codes = access_codes;
     }
 
     static fromPersistence(row) {
@@ -33,6 +35,7 @@ class Section {
             days: row.days,
             start_time: row.start_time,
             end_time: row.end_time,
+            access_codes: row.access_codes,
         });
     }
 
@@ -50,6 +53,7 @@ class Section {
             days: data.days,
             start_time: data.start_time,
             end_time: data.end_time,
+            access_codes: data.access_codes,
         });
     }
 
@@ -85,6 +89,10 @@ class Section {
         return this.#end_time;
     }
 
+    getAccessCodes() {
+        return this.#access_codes;
+    }
+
     hasSameIdentityAs(otherSection) {
         if (!(otherSection instanceof Section)) {
             return false;
@@ -94,6 +102,20 @@ class Section {
     }
 
     toObject() {
+        return {
+            section_id: this.#section_id,
+            course_id: this.#course_id,
+            semester_id: this.#semester_id,
+            professor_id: this.#professor_id,
+            capacity: this.#capacity,
+            days: this.#days,
+            start_time: this.#start_time,
+            end_time: this.#end_time,
+            access_codes: this.#access_codes,
+        };
+    }
+
+    toSafeObject() {
         return {
             section_id: this.#section_id,
             course_id: this.#course_id,

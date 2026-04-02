@@ -64,7 +64,15 @@ class AdminService {
         try {
             await db.beginTransaction(connection);
 
-            const result = await db.queryWithConnection(connection, 'INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)', [name, email, password]);
+            let result;
+            try {
+                result = await db.queryWithConnection(connection, 'INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)', [name, email, password]);
+            } catch (err) {
+                if (err.code === 'ER_DUP_ENTRY') {
+                    throw new Errors.DuplicateEntryError('User with this email already exists.');
+                }
+                throw err;
+            }
 
             const newId = result.insertId;
 
