@@ -4,9 +4,6 @@ node_modules
 package-lock.json
 schema.mwb
 schema.mwb.bak
-/backend/src/cli/
-app.cli.js
-user.cli.js
 /.vscode
 schema_old.sql
 schema_old_2.sql
@@ -26,4 +23,3 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-browseCourses.js
