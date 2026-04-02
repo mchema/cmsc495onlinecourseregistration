@@ -2,10 +2,9 @@ import { assertEqual, assertStatus, assertTruthy } from '../assert.js';
 import { authHeaders } from '../http.js';
 import { logPass } from '../logger.js';
 import { loginAndGetAuth } from '../auth.js';
-import * as db from '../../../backend/src/db/connection.js';
 
 export async function runSectionsSuite(ctx, request) {
-    const refs = await getSectionRefs(request);
+    const refs = await getSectionRefs(ctx, request);
     const createdCourseId = await createCourseForSectionTests(ctx, request);
 
     const invalidListQuery = await request('/api/sections?page=-1&limit=0');
@@ -505,8 +504,18 @@ export async function runSectionsSuite(ctx, request) {
         logPass(testCase.successMessage);
     }
 
-    const deleteBlockedStudentId = await getStudentIdForSectionDeleteGuard();
-    await db.query('INSERT INTO enrollments (student_id, section_id, status) VALUES (?, ?, ?)', [deleteBlockedStudentId, createdSectionId, 'enrolled']);
+    const deleteGuardStudentOne = await createStudentAuth(ctx, request, 'delete_guard_one');
+    const deleteGuardStudentTwo = await createStudentAuth(ctx, request, 'delete_guard_two');
+    const deleteGuardEnrollmentOne = await createEnrollment(request, ctx.adminAuth.token, deleteGuardStudentOne.user.role_id, createdSectionId);
+    const deleteGuardEnrollmentTwo = await createEnrollment(request, ctx.adminAuth.token, deleteGuardStudentTwo.user.role_id, createdSectionId);
+
+    const capacityReductionBlocked = await request(`/api/sections/${createdSectionId}`, {
+        method: 'PATCH',
+        headers: authHeaders(ctx.adminAuth.token),
+        body: JSON.stringify({ ...updatePayload, capacity: 1 }),
+    });
+    assertStatus(capacityReductionBlocked, 400, 'PATCH /api/sections/:sectionId should reject reducing capacity below current enrolled count');
+    logPass('PATCH /api/sections/:sectionId rejects capacity reductions below current enrolled count');
 
     const deleteBlockedSection = await request(`/api/sections/${createdSectionId}`, {
         method: 'DELETE',
@@ -515,7 +524,8 @@ export async function runSectionsSuite(ctx, request) {
     assertStatus(deleteBlockedSection, 400, 'DELETE /api/sections/:sectionId should reject deletion when enrollments exist');
     logPass('DELETE /api/sections/:sectionId rejects deletion when enrollments exist');
 
-    await db.query('DELETE FROM enrollments WHERE section_id = ?', [createdSectionId]);
+    await deleteEnrollmentIfExists(request, ctx.adminAuth.token, deleteGuardEnrollmentOne.enrollment_id);
+    await deleteEnrollmentIfExists(request, ctx.adminAuth.token, deleteGuardEnrollmentTwo.enrollment_id);
 
     const deleteSection = await request(`/api/sections/${createdSectionId}`, {
         method: 'DELETE',
@@ -551,22 +561,26 @@ export async function runSectionsSuite(ctx, request) {
         headers: authHeaders(ctx.adminAuth.token),
     });
     assertStatus(deleteOtherProfessor, 200, 'DELETE /api/admin/users/:id should clean up unrelated professor user');
+
+    await deleteUserIfExists(request, ctx.adminAuth.token, refs.professorUserId);
+    await deleteUserIfExists(request, ctx.adminAuth.token, deleteGuardStudentOne.user.id);
+    await deleteUserIfExists(request, ctx.adminAuth.token, deleteGuardStudentTwo.user.id);
+
+    const deleteSemester = await request(`/api/semesters/${refs.semesterId}`, {
+        method: 'DELETE',
+        headers: authHeaders(ctx.adminAuth.token),
+    });
+    assertStatus(deleteSemester, 200, 'DELETE /api/semesters/:semesterId should clean up section test semester');
 }
 
-async function getSectionRefs(request) {
-    const res = await request('/api/sections?page=1&limit=100');
-
-    assertStatus(res, 200, 'GET /api/sections should provide seed section data for section tests');
-    const sections = Array.isArray(res.body?.sections) ? res.body.sections : [];
-    const sectionWithProfessor = sections.find((section) => section.professor_id);
-    const semesterIds = [...new Set(sections.map((section) => section.semester_id).filter(Boolean))];
-
-    assertTruthy(semesterIds[0], 'Section tests require at least one existing semester id from section data', res.body);
-    assertTruthy(sectionWithProfessor?.professor_id, 'Section tests require at least one existing professor id from section data', res.body);
+async function getSectionRefs(ctx, request) {
+    const semesterId = await createSemesterForSectionTests(ctx, request);
+    const professorAuth = await createProfessorAuth(ctx, request, 'base');
 
     return {
-        semesterId: semesterIds[0],
-        professorId: sectionWithProfessor.professor_id,
+        semesterId,
+        professorId: professorAuth.user.role_id,
+        professorUserId: professorAuth.user.id,
     };
 }
 
@@ -591,15 +605,9 @@ async function createCourseForSectionTests(ctx, request) {
     return res.body.course.course_id;
 }
 
-async function getStudentIdForSectionDeleteGuard() {
-    const rows = await db.query('SELECT student_id FROM students ORDER BY student_id ASC LIMIT 1');
-    assertTruthy(rows[0]?.student_id, 'Section delete-guard tests require at least one student seed row', rows);
-    return rows[0].student_id;
-}
-
 async function createProfessorAuth(ctx, request, label) {
     const now = Date.now();
-    const name = `Section ${label} Professor ${now}`;
+    const name = `SecProf ${label} ${now}`;
     const email = `section_${label}_prof_${now}@gmail.com`;
     const password = `SectionProf!${now}Aa1`;
 
@@ -624,6 +632,82 @@ async function createProfessorAuth(ctx, request, label) {
     assertStatus(passwordChange, 200, 'POST /api/auth/change-password should activate professor users for access-code tests');
 
     return loginAndGetAuth(request, email, password);
+}
+
+async function createStudentAuth(ctx, request, label) {
+    const now = Date.now();
+    const name = `SecStud ${label} ${now}`;
+    const email = `section_${label}_student_${now}@gmail.com`;
+    const password = `SectionStudent!${now}Aa1`;
+
+    const createStudent = await request('/api/admin/users', {
+        method: 'POST',
+        headers: authHeaders(ctx.adminAuth.token),
+        body: JSON.stringify({
+            name,
+            email,
+            userType: 'STUDENT',
+            roleDetails: 'Computer Science',
+        }),
+    });
+    assertStatus(createStudent, 201, 'POST /api/admin/users should create student users for section tests');
+
+    const firstLoginAuth = await loginAndGetAuth(request, email, name + email);
+    const passwordChange = await request('/api/auth/change-password', {
+        method: 'POST',
+        headers: authHeaders(firstLoginAuth.token),
+        body: JSON.stringify({ newPassword: password }),
+    });
+    assertStatus(passwordChange, 200, 'POST /api/auth/change-password should activate student users for section tests');
+
+    return loginAndGetAuth(request, email, password);
+}
+
+async function createEnrollment(request, adminToken, studentId, sectionId) {
+    const res = await request('/api/enrollments', {
+        method: 'POST',
+        headers: authHeaders(adminToken),
+        body: JSON.stringify({ studentId, sectionId }),
+    });
+    assertStatus(res, 201, 'Section test setup should create enrollment fixtures');
+    return res.body.enrollment;
+}
+
+async function createSemesterForSectionTests(ctx, request) {
+    const payload = {
+        term: 'SECT',
+        year: 2080 + Number(String(Date.now()).slice(-1)),
+    };
+
+    const res = await request('/api/semesters', {
+        method: 'POST',
+        headers: authHeaders(ctx.adminAuth.token),
+        body: JSON.stringify(payload),
+    });
+    assertStatus(res, 201, 'POST /api/semesters should create semester fixtures for section tests');
+    return res.body.semester.semester_id;
+}
+
+async function deleteEnrollmentIfExists(request, adminToken, enrollmentId) {
+    const res = await request('/api/enrollments/' + enrollmentId, {
+        method: 'DELETE',
+        headers: authHeaders(adminToken),
+    });
+
+    if (![200, 404].includes(res.status)) {
+        throw new Error(`Section enrollment cleanup failed for ${enrollmentId}. Status: ${res.status}. Body: ${JSON.stringify(res.body)}`);
+    }
+}
+
+async function deleteUserIfExists(request, adminToken, userId) {
+    const res = await request('/api/admin/users/' + userId, {
+        method: 'DELETE',
+        headers: authHeaders(adminToken),
+    });
+
+    if (![200, 404].includes(res.status)) {
+        throw new Error(`Section user cleanup failed for ${userId}. Status: ${res.status}. Body: ${JSON.stringify(res.body)}`);
+    }
 }
 
 async function createProfessorOwnedSection(request, adminToken, courseId, refs, professorId) {

@@ -7,9 +7,9 @@ import { runAdminReadWriteSuite, runAdminUsersSuite, runPostPasswordAdminChecks 
 import { runCoursesSuite } from './suites/courses.suite.js';
 import { runEnrollmentsSuite } from './suites/enrollments.suite.js';
 import { runPrerequisitesSuite } from './suites/prerequisites.suite.js';
+import { runSemestersSuite } from './suites/semesters.suite.js';
 import { runSectionsSuite } from './suites/sections.suite.js';
 import { startServer, stopServer, waitForServer } from './serverLifecycle.js';
-import { close as closeDb } from '../../backend/src/db/connection.js';
 
 export async function runApiTests() {
     const ctx = createTestContext();
@@ -35,6 +35,7 @@ export async function runApiTests() {
             await runCoursesSuite(ctx, request);
             await runPrerequisitesSuite(ctx, request);
         }
+        await runSemestersSuite(ctx, request);
         if (RUN_SECTION_SUITE !== 'false') {
             await runSectionsSuite(ctx, request);
         }
@@ -49,6 +50,5 @@ export async function runApiTests() {
         process.exitCode = 1;
     } finally {
         await stopServer(child);
-        await closeDb();
     }
 }

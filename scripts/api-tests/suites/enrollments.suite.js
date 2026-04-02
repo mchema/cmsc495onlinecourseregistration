@@ -1,10 +1,11 @@
-import * as db from '../../../backend/src/db/connection.js';
 import { assertEqual, assertStatus, assertTruthy } from '../assert.js';
+import { loginAndGetAuth } from '../auth.js';
 import { authHeaders } from '../http.js';
 import { logPass } from '../logger.js';
 
 export async function runEnrollmentsSuite(ctx, request) {
     const refs = await getEnrollmentRefs(ctx, request);
+    const accessCodeStudentAuth = await createStudentAuth(ctx, request, 'access');
 
     const getWithoutToken = await request('/api/enrollments/1');
     assertStatus(getWithoutToken, 401, 'GET /api/enrollments/:enrollmentId should reject missing token');
@@ -77,6 +78,7 @@ export async function runEnrollmentsSuite(ctx, request) {
     });
     assertStatus(studentSelfEnroll, 201, 'POST /api/enrollments should allow students to enroll themselves');
     const selfEnrollmentId = studentSelfEnroll.body?.enrollment?.enrollment_id;
+    refs.enrollmentIds.push(selfEnrollmentId);
     assertTruthy(selfEnrollmentId, 'Student self-enrollment should return an enrollment id', studentSelfEnroll.body);
     assertEqual(studentSelfEnroll.body?.enrollment?.status, 'enrolled', 'Student self-enrollment should use enrolled status when capacity is available', studentSelfEnroll.body);
     logPass('POST /api/enrollments allows students to enroll themselves');
@@ -103,6 +105,7 @@ export async function runEnrollmentsSuite(ctx, request) {
     logPass('GET /api/enrollments/:enrollmentId allows students to read their own enrollment');
 
     const otherStudentEnrollment = await createEnrollment(request, ctx.adminAuth.token, refs.studentIds[0], refs.baseSectionId);
+    refs.enrollmentIds.push(otherStudentEnrollment.enrollment_id);
     const studentGetOtherEnrollment = await request('/api/enrollments/' + otherStudentEnrollment.enrollment_id, {
         headers: authHeaders(ctx.updatedNonAdminAuth.token),
     });
@@ -117,33 +120,112 @@ export async function runEnrollmentsSuite(ctx, request) {
     assertStatus(unmetPrerequisiteCreate, 409, 'POST /api/enrollments should reject students who have not completed prerequisites');
     logPass('POST /api/enrollments rejects students without prerequisites');
 
-    await db.query('INSERT INTO enrollments (student_id, section_id, status) VALUES (?, ?, ?)', [refs.studentIds[1], refs.prereqSectionId, 'COMPLETED']);
+    const prereqEnrollment = await createEnrollment(request, ctx.adminAuth.token, refs.studentIds[1], refs.prereqSectionId);
+    refs.enrollmentIds.push(prereqEnrollment.enrollment_id);
+    const completePrereqEnrollment = await request('/api/enrollments/' + prereqEnrollment.enrollment_id, {
+        method: 'PATCH',
+        headers: authHeaders(ctx.adminAuth.token),
+        body: JSON.stringify({ status: 'completed' }),
+    });
+    assertStatus(completePrereqEnrollment, 200, 'PATCH /api/enrollments/:enrollmentId should allow admins to complete prerequisite enrollments during test setup');
+
     const metPrerequisiteCreate = await request('/api/enrollments', {
         method: 'POST',
         headers: authHeaders(ctx.adminAuth.token),
         body: JSON.stringify({ studentId: refs.studentIds[1], sectionId: refs.targetSectionId }),
     });
     assertStatus(metPrerequisiteCreate, 201, 'POST /api/enrollments should allow students who completed prerequisites');
+    refs.enrollmentIds.push(metPrerequisiteCreate.body?.enrollment?.enrollment_id);
     assertEqual(metPrerequisiteCreate.body?.enrollment?.status, 'enrolled', 'POST /api/enrollments should enroll students who meet prerequisites', metPrerequisiteCreate.body);
     logPass('POST /api/enrollments allows students who completed prerequisites');
 
     const capacityOne = await createEnrollment(request, ctx.adminAuth.token, refs.studentIds[2], refs.limitedSectionId);
+    refs.enrollmentIds.push(capacityOne.enrollment_id);
     assertEqual(capacityOne.status, 'enrolled', 'First enrollment in a limited section should be enrolled', capacityOne);
     const waitlistOne = await createEnrollment(request, ctx.adminAuth.token, refs.studentIds[3], refs.limitedSectionId);
+    refs.enrollmentIds.push(waitlistOne.enrollment_id);
     assertEqual(waitlistOne.status, 'waitlisted', 'Second enrollment in a full section should be waitlisted', waitlistOne);
     const waitlistTwo = await createEnrollment(request, ctx.adminAuth.token, refs.studentIds[4], refs.limitedSectionId);
+    refs.enrollmentIds.push(waitlistTwo.enrollment_id);
     assertEqual(waitlistTwo.status, 'waitlisted', 'Third enrollment in a full section should be waitlisted', waitlistTwo);
-    const waitlistThree = await createEnrollment(request, ctx.adminAuth.token, refs.studentIds[5], refs.limitedSectionId);
-    assertEqual(waitlistThree.status, 'waitlisted', 'Fourth enrollment in a full section should be waitlisted', waitlistThree);
+    const waitlistThree = await request('/api/enrollments', {
+        method: 'POST',
+        headers: authHeaders(accessCodeStudentAuth.token),
+        body: JSON.stringify({ studentId: accessCodeStudentAuth.user.role_id, sectionId: refs.limitedSectionId }),
+    });
+    assertStatus(waitlistThree, 201, 'POST /api/enrollments should let students join a full-section waitlist');
+    refs.enrollmentIds.push(waitlistThree.body?.enrollment?.enrollment_id);
+    assertEqual(waitlistThree.body?.enrollment?.status, 'waitlisted', 'Fourth enrollment in a full section should be waitlisted', waitlistThree.body);
     logPass('POST /api/enrollments applies waitlist behavior after section capacity is reached');
 
     const sectionFullCreate = await request('/api/enrollments', {
         method: 'POST',
         headers: authHeaders(ctx.adminAuth.token),
-        body: JSON.stringify({ studentId: refs.studentIds[6], sectionId: refs.limitedSectionId }),
+        body: JSON.stringify({ studentId: refs.studentIds[5], sectionId: refs.limitedSectionId }),
     });
     assertStatus(sectionFullCreate, 409, 'POST /api/enrollments should reject enrollment when waitlist is full');
     logPass('POST /api/enrollments rejects enrollment when waitlist is full');
+
+    const adminDropEnrolled = await request('/api/enrollments/' + capacityOne.enrollment_id, {
+        method: 'PATCH',
+        headers: authHeaders(ctx.adminAuth.token),
+        body: JSON.stringify({ status: 'dropped' }),
+    });
+    assertStatus(adminDropEnrolled, 200, 'PATCH /api/enrollments/:enrollmentId should allow admins to drop enrolled students');
+    logPass('PATCH /api/enrollments/:enrollmentId allows admins to drop enrolled students');
+
+    const getPromotedWaitlist = await request('/api/enrollments/' + waitlistOne.enrollment_id, {
+        headers: authHeaders(ctx.adminAuth.token),
+    });
+    assertStatus(getPromotedWaitlist, 200, 'GET /api/enrollments/:enrollmentId should allow admins to read promoted waitlist records');
+    assertEqual(getPromotedWaitlist.body?.enrollment?.status, 'enrolled', 'PATCH /api/enrollments/:enrollmentId should promote the next waitlisted student when a seat opens', getPromotedWaitlist.body);
+    logPass('PATCH /api/enrollments/:enrollmentId promotes the next waitlisted student when a seat opens');
+
+    const recycledWaitlistCreate = await request('/api/enrollments', {
+        method: 'POST',
+        headers: authHeaders(ctx.adminAuth.token),
+        body: JSON.stringify({ studentId: refs.studentIds[6], sectionId: refs.limitedSectionId }),
+    });
+    assertStatus(recycledWaitlistCreate, 201, 'POST /api/enrollments should allow new waitlist entries after promotion rebalances a section');
+    refs.enrollmentIds.push(recycledWaitlistCreate.body?.enrollment?.enrollment_id);
+    assertEqual(recycledWaitlistCreate.body?.enrollment?.status, 'waitlisted', 'POST /api/enrollments should still create waitlisted records after promoting earlier waitlist entries', recycledWaitlistCreate.body);
+    logPass('POST /api/enrollments supports new waitlist entries after promotion rebalances a section');
+
+    const limitedSectionAccessCodes = await request(`/api/sections/${refs.limitedSectionId}/access-codes`, {
+        headers: authHeaders(ctx.adminAuth.token),
+    });
+    assertStatus(limitedSectionAccessCodes, 200, 'GET /api/sections/:sectionId/access-codes should expose enrollment test access codes to admins');
+    const accessCodeValues = Object.keys(limitedSectionAccessCodes.body?.accessCodes ?? {})
+        .filter((key) => /^code\d+$/.test(key))
+        .map((key) => limitedSectionAccessCodes.body.accessCodes[key]);
+    assertTruthy(accessCodeValues.length >= 2, 'Enrollment access-code tests require at least two available section access codes', limitedSectionAccessCodes.body);
+
+    const accessCodeCreate = await request('/api/enrollments', {
+        method: 'POST',
+        headers: authHeaders(ctx.adminAuth.token),
+        body: JSON.stringify({ studentId: refs.studentIds[5], sectionId: refs.limitedSectionId, accessCode: accessCodeValues[0] }),
+    });
+    assertStatus(accessCodeCreate, 201, 'POST /api/enrollments should allow access-code overrides into full sections');
+    refs.enrollmentIds.push(accessCodeCreate.body?.enrollment?.enrollment_id);
+    assertEqual(accessCodeCreate.body?.enrollment?.status, 'enrolled', 'POST /api/enrollments should create enrolled records when a valid access code is used', accessCodeCreate.body);
+    logPass('POST /api/enrollments allows valid access-code overrides into enrolled status');
+
+    const studentAccessCodePromotion = await request('/api/enrollments/' + waitlistThree.body.enrollment.enrollment_id, {
+        method: 'PATCH',
+        headers: authHeaders(accessCodeStudentAuth.token),
+        body: JSON.stringify({ status: 'enrolled', accessCode: accessCodeValues[1] }),
+    });
+    assertStatus(studentAccessCodePromotion, 200, 'PATCH /api/enrollments/:enrollmentId should allow students to use access codes for waitlist promotion');
+    assertEqual(studentAccessCodePromotion.body?.enrollment?.status, 'enrolled', 'PATCH /api/enrollments/:enrollmentId should move waitlisted students to enrolled with a valid access code', studentAccessCodePromotion.body);
+    logPass('PATCH /api/enrollments/:enrollmentId allows student access-code promotion from waitlisted to enrolled');
+
+    const invalidAdminCompleteWaitlisted = await request('/api/enrollments/' + waitlistTwo.enrollment_id, {
+        method: 'PATCH',
+        headers: authHeaders(ctx.adminAuth.token),
+        body: JSON.stringify({ status: 'completed' }),
+    });
+    assertStatus(invalidAdminCompleteWaitlisted, 400, 'PATCH /api/enrollments/:enrollmentId should reject marking waitlisted students completed');
+    logPass('PATCH /api/enrollments/:enrollmentId rejects invalid admin completion transitions');
 
     const invalidUpdateBody = await request('/api/enrollments/' + selfEnrollmentId, {
         method: 'PATCH',
@@ -198,27 +280,37 @@ export async function runEnrollmentsSuite(ctx, request) {
         method: 'DELETE',
         headers: authHeaders(ctx.updatedNonAdminAuth.token),
     });
-    assertStatus(studentDeleteOwn, 200, 'DELETE /api/enrollments/:enrollmentId should allow students to delete their own enrollments');
-    logPass('DELETE /api/enrollments/:enrollmentId allows students to delete their own enrollments');
+    assertStatus(studentDeleteOwn, 403, 'DELETE /api/enrollments/:enrollmentId should prevent students from deleting their own enrollments');
+    logPass('DELETE /api/enrollments/:enrollmentId prevents students from deleting their own enrollments');
 
     const getAfterDelete = await request('/api/enrollments/' + selfEnrollmentId, {
         headers: authHeaders(ctx.adminAuth.token),
     });
-    assertStatus(getAfterDelete, 404, 'GET /api/enrollments/:enrollmentId should return 404 after deletion');
-    logPass('GET /api/enrollments/:enrollmentId returns 404 after deletion');
+    assertStatus(getAfterDelete, 200, 'GET /api/enrollments/:enrollmentId should preserve enrollment history after delete is rejected');
+    assertEqual(getAfterDelete.body?.enrollment?.status, 'dropped', 'GET /api/enrollments/:enrollmentId should still show dropped status after a rejected student delete', getAfterDelete.body);
+    logPass('GET /api/enrollments/:enrollmentId preserves enrollment history after rejected student delete');
 
-    await cleanupEnrollmentFixtures(request, ctx.adminAuth.token, refs);
+    await cleanupEnrollmentFixtures(ctx, request, refs, accessCodeStudentAuth.user.id);
 }
 
 async function getEnrollmentRefs(ctx, request) {
-    const students = await db.query('SELECT student_id FROM students ORDER BY student_id ASC LIMIT 7');
-    assertTruthy(students.length >= 7, 'Enrollment tests require at least seven student rows', students);
+    const semesterId = await createSemesterForTests(ctx, request, 'ENROLLMENT');
+    const professorAuth = await createProfessorAuth(ctx, request, 'enrollment_base');
+    const studentAuths = [];
 
-    const sectionRefs = await getSectionRefs(request);
+    for (let i = 0; i < 7; i++) {
+        studentAuths.push(await createStudentAuth(ctx, request, 'fixture_' + i));
+    }
+
     const prereqCourseId = await createCourseForEnrollmentTests(ctx, request, 'ENRA', 'Enrollment Prereq');
     const targetCourseId = await createCourseForEnrollmentTests(ctx, request, 'ENRB', 'Enrollment Target');
     const baseCourseId = await createCourseForEnrollmentTests(ctx, request, 'ENRC', 'Enrollment Base');
     const limitedCourseId = await createCourseForEnrollmentTests(ctx, request, 'ENRD', 'Enrollment Limited');
+
+    const sectionRefs = {
+        semesterId,
+        professorId: professorAuth.user.role_id,
+    };
 
     const prereqSectionId = await createSectionForEnrollmentTests(request, ctx.adminAuth.token, prereqCourseId, sectionRefs, 10);
     const targetSectionId = await createSectionForEnrollmentTests(request, ctx.adminAuth.token, targetCourseId, sectionRefs, 10);
@@ -236,8 +328,12 @@ async function getEnrollmentRefs(ctx, request) {
     assertStatus(addPrerequisite, 201, 'Enrollment test setup should create prerequisite relationships');
 
     return {
-        studentIds: students.map((row) => row.student_id),
+        studentIds: studentAuths.map((auth) => auth.user.role_id),
+        studentUserIds: studentAuths.map((auth) => auth.user.id),
         selfStudentId: ctx.updatedNonAdminAuth.user.role_id,
+        semesterId,
+        professorUserId: professorAuth.user.id,
+        professorId: professorAuth.user.role_id,
         prereqCourseId,
         targetCourseId,
         baseCourseId,
@@ -246,23 +342,7 @@ async function getEnrollmentRefs(ctx, request) {
         targetSectionId,
         baseSectionId,
         limitedSectionId,
-    };
-}
-
-async function getSectionRefs(request) {
-    const res = await request('/api/sections?page=1&limit=100');
-    assertStatus(res, 200, 'Enrollment tests require section listing to discover semester and professor refs');
-
-    const sections = Array.isArray(res.body?.sections) ? res.body.sections : [];
-    const sectionWithProfessor = sections.find((section) => section.professor_id);
-    const semesterIds = [...new Set(sections.map((section) => section.semester_id).filter(Boolean))];
-
-    assertTruthy(semesterIds[0], 'Enrollment tests require at least one existing semester id from section data', res.body);
-    assertTruthy(sectionWithProfessor?.professor_id, 'Enrollment tests require at least one existing professor id from section data', res.body);
-
-    return {
-        semesterId: semesterIds[0],
-        professorId: sectionWithProfessor.professor_id,
+        enrollmentIds: [],
     };
 }
 
@@ -312,32 +392,141 @@ async function createEnrollment(request, adminToken, studentId, sectionId) {
     return res.body.enrollment;
 }
 
-async function cleanupEnrollmentFixtures(request, adminToken, refs) {
-    await db.query('DELETE FROM enrollments WHERE section_id IN (?, ?, ?, ?)', [
-        refs.prereqSectionId,
-        refs.targetSectionId,
-        refs.baseSectionId,
-        refs.limitedSectionId,
-    ]);
+async function createStudentAuth(ctx, request, label) {
+    const now = Date.now();
+    const name = `EnrStud ${label} ${now}`;
+    const email = `enrollment_${label}_student_${now}@gmail.com`;
+    const password = `EnrollmentStudent!${now}Aa1`;
 
-    await request('/api/prerequisites/' + refs.targetCourseId + '/' + refs.prereqCourseId, {
+    const createStudent = await request('/api/admin/users', {
+        method: 'POST',
+        headers: authHeaders(ctx.adminAuth.token),
+        body: JSON.stringify({
+            name,
+            email,
+            userType: 'STUDENT',
+            roleDetails: 'Computer Science',
+        }),
+    });
+    assertStatus(createStudent, 201, 'POST /api/admin/users should create student users for enrollment tests');
+
+    const firstLoginAuth = await loginAndGetAuth(request, email, name + email);
+    const passwordChange = await request('/api/auth/change-password', {
+        method: 'POST',
+        headers: authHeaders(firstLoginAuth.token),
+        body: JSON.stringify({ newPassword: password }),
+    });
+    assertStatus(passwordChange, 200, 'POST /api/auth/change-password should activate student users for enrollment tests');
+
+    return loginAndGetAuth(request, email, password);
+}
+
+async function createProfessorAuth(ctx, request, label) {
+    const now = Date.now();
+    const name = `EnrProf ${label} ${now}`;
+    const email = `enrollment_${label}_prof_${now}@gmail.com`;
+    const password = `EnrollmentProf!${now}Aa1`;
+
+    const createProfessor = await request('/api/admin/users', {
+        method: 'POST',
+        headers: authHeaders(ctx.adminAuth.token),
+        body: JSON.stringify({
+            name,
+            email,
+            userType: 'PROFESSOR',
+            roleDetails: 'Computer Science',
+        }),
+    });
+    assertStatus(createProfessor, 201, 'POST /api/admin/users should create professor users for enrollment tests');
+
+    const firstLoginAuth = await loginAndGetAuth(request, email, name + email);
+    const passwordChange = await request('/api/auth/change-password', {
+        method: 'POST',
+        headers: authHeaders(firstLoginAuth.token),
+        body: JSON.stringify({ newPassword: password }),
+    });
+    assertStatus(passwordChange, 200, 'POST /api/auth/change-password should activate professor users for enrollment tests');
+
+    return loginAndGetAuth(request, email, password);
+}
+
+async function createSemesterForTests(ctx, request, termPrefix) {
+    const payload = {
+        term: String(termPrefix).slice(0, 4).toUpperCase(),
+        year: 2090 + Number(String(Date.now()).slice(-1)),
+    };
+
+    const res = await request('/api/semesters', {
+        method: 'POST',
+        headers: authHeaders(ctx.adminAuth.token),
+        body: JSON.stringify(payload),
+    });
+    assertStatus(res, 201, 'Enrollment tests should create semester fixtures');
+    return res.body.semester.semester_id;
+}
+
+async function deleteEnrollmentIfExists(request, adminToken, enrollmentId) {
+    if (!enrollmentId) {
+        return;
+    }
+
+    const res = await request('/api/enrollments/' + enrollmentId, {
         method: 'DELETE',
         headers: authHeaders(adminToken),
     });
 
-    const sectionIds = [refs.prereqSectionId, refs.targetSectionId, refs.baseSectionId, refs.limitedSectionId];
-    for (const sectionId of sectionIds) {
+    if (![200, 404].includes(res.status)) {
+        throw new Error(`Enrollment cleanup failed for ${enrollmentId}. Status: ${res.status}. Body: ${JSON.stringify(res.body)}`);
+    }
+}
+
+async function deleteUserIfExists(request, adminToken, userId) {
+    if (!userId) {
+        return;
+    }
+
+    const res = await request('/api/admin/users/' + userId, {
+        method: 'DELETE',
+        headers: authHeaders(adminToken),
+    });
+
+    if (![200, 404].includes(res.status)) {
+        throw new Error(`User cleanup failed for ${userId}. Status: ${res.status}. Body: ${JSON.stringify(res.body)}`);
+    }
+}
+
+async function cleanupEnrollmentFixtures(ctx, request, refs, accessCodeStudentUserId) {
+    for (const enrollmentId of [...new Set(refs.enrollmentIds)].reverse()) {
+        await deleteEnrollmentIfExists(request, ctx.adminAuth.token, enrollmentId);
+    }
+
+    await request('/api/prerequisites/' + refs.targetCourseId + '/' + refs.prereqCourseId, {
+        method: 'DELETE',
+        headers: authHeaders(ctx.adminAuth.token),
+    });
+
+    for (const sectionId of [refs.prereqSectionId, refs.targetSectionId, refs.baseSectionId, refs.limitedSectionId]) {
         await request('/api/sections/' + sectionId, {
             method: 'DELETE',
-            headers: authHeaders(adminToken),
+            headers: authHeaders(ctx.adminAuth.token),
         });
     }
 
-    const courseIds = [refs.prereqCourseId, refs.targetCourseId, refs.baseCourseId, refs.limitedCourseId];
-    for (const courseId of courseIds) {
+    for (const courseId of [refs.prereqCourseId, refs.targetCourseId, refs.baseCourseId, refs.limitedCourseId]) {
         await request('/api/courses/' + courseId, {
             method: 'DELETE',
-            headers: authHeaders(adminToken),
+            headers: authHeaders(ctx.adminAuth.token),
         });
     }
+
+    await deleteUserIfExists(request, ctx.adminAuth.token, refs.professorUserId);
+    for (const userId of refs.studentUserIds) {
+        await deleteUserIfExists(request, ctx.adminAuth.token, userId);
+    }
+    await deleteUserIfExists(request, ctx.adminAuth.token, accessCodeStudentUserId);
+
+    await request('/api/semesters/' + refs.semesterId, {
+        method: 'DELETE',
+        headers: authHeaders(ctx.adminAuth.token),
+    });
 }
