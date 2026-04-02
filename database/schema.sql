@@ -124,6 +124,7 @@ CREATE TABLE IF NOT EXISTS `registrationdb`.`sections` (
   `days` VARCHAR(10) NOT NULL,
   `start_time` TIME NULL DEFAULT NULL,
   `end_time` TIME NULL DEFAULT NULL,
+  `access_codes` JSON NULL DEFAULT NULL,
   PRIMARY KEY (`section_id`),
   INDEX `professor_id_idx` (`professor_id` ASC) VISIBLE,
   INDEX `semester_id_idx` (`semester_id` ASC) VISIBLE,
