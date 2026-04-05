@@ -49,26 +49,39 @@ tags:
       description: Read More
       url: https://github.com/avraham-adi/cmsc495registrationsystem/tree/main
 paths:
-  /user/login:
+  /api/health:
     get:
+      tags:
+        - auth
+      summary: Health check
+      description: Returns a simple service health message.
+      operationId: getHealth
+      responses:
+        '200':
+          description: API health returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /user/login:
+    post:
       tags:
         - auth
       summary: Log in a user
       description: Authenticate a user, create a server-side session, and set an HttpOnly session cookie.
       operationId: login
-      parameters:
-        - name: email
-          in: query
-          description: User email address
-          required: true
-          schema:
-            type: string
-        - name: password
-          in: query
-          description: User password
-          required: true
-          schema:
-            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
       responses:
         '200':
           description: Login completed successfully and a session cookie was issued.
@@ -85,7 +98,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Login'
         '400':
-          description: Missing credentials in the request
+          description: Invalid or missing login request body
         '401':
           description: Invalid email and/or password
   /user/logout:
@@ -137,13 +150,15 @@ paths:
       summary: Change the current user's password
       description: Update the password for the authenticated user within the active session.
       operationId: updPass
-      parameters:
-        - name: password
-          in: query
-          description: New password
-          required: true
-          schema:
-            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordChangeRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/PasswordChangeRequest'
       responses:
         '200':
           description: Password changed successfully.
@@ -168,6 +183,15 @@ paths:
       summary: Update the current user
       description: Update the authenticated user's profile information within the active session.
       operationId: updUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
       responses:
         '200':
           description: Updated user information returned successfully.
@@ -244,31 +268,15 @@ paths:
       summary: Create a user
       description: Create a new user account. Requires role ADMIN. Role is verified server-side for the session user.
       operationId: addUser
-      parameters:
-        - name: name
-          in: query
-          description: User name
-          required: true
-          schema:
-            type: string
-        - name: email
-          in: query
-          description: User email
-          required: true
-          schema:
-            type: string
-        - name: detail
-          in: query
-          description: Role-specific detail value
-          required: true
-          schema:
-            type: string
-        - name: type
-          in: query
-          description: "User role: ADMIN, STUDENT, or PROFESSOR"
-          required: true
-          schema:
-            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUserCreateRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/AdminUserCreateRequest'
       responses:
         '201':
           description: User created successfully.
@@ -280,7 +288,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/User'
         '400':
-          description: Invalid request body
+          description: Invalid query parameter
         '401':
           description: Invalid or missing session
         '403':
@@ -359,18 +367,15 @@ paths:
           required: true
           schema:
             type: integer
-        - name: type
-          in: query
-          description: Target role type
-          required: true
-          schema:
-            type: string
-        - name: detail
-          in: query
-          description: Role-specific detail value
-          required: true
-          schema:
-            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUserRoleUpdateRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/AdminUserRoleUpdateRequest'
       responses:
         '200':
           description: User role updated successfully.
@@ -441,31 +446,15 @@ paths:
       summary: Create a course
       description: Create a new course. Requires role ADMIN. Role is verified server-side for the session user.
       operationId: addCourse
-      parameters:
-        - name: code
-          in: query
-          description: Course code
-          required: true
-          schema:
-            type: string
-        - name: title
-          in: query
-          description: Course title
-          required: true
-          schema:
-            type: string
-        - name: desc
-          in: query
-          description: Course description
-          required: true
-          schema:
-            type: string
-        - name: cred
-          in: query
-          description: Course credits
-          required: true
-          schema:
-            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseWriteRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/CourseWriteRequest'
       responses:
         '201':
           description: Course created successfully.
@@ -527,30 +516,15 @@ paths:
           required: true
           schema:
             type: integer
-        - name: code
-          in: query
-          description: Course code
-          required: true
-          schema:
-            type: string
-        - name: title
-          in: query
-          description: Course title
-          required: true
-          schema:
-            type: string
-        - name: desc
-          in: query
-          description: Course description
-          required: true
-          schema:
-            type: string
-        - name: cred
-          in: query
-          description: Course credits
-          required: true
-          schema:
-            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseWriteRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/CourseWriteRequest'
       responses:
         '200':
           description: Course updated successfully.
@@ -608,19 +582,15 @@ paths:
       summary: Create a prerequisite
       description: Add a prerequisite relationship to a course. Requires role ADMIN. Role is verified server-side for the session user.
       operationId: addPrerequisite
-      parameters:
-        - name: cId
-          in: query
-          description: Course ID
-          required: true
-          schema:
-            type: integer
-        - name: pId
-          in: query
-          description: Prerequisite ID
-          required: true
-          schema:
-            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrerequisiteCreateRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/PrerequisiteCreateRequest'
       responses:
         '201':
           description: Prerequisite created successfully.
@@ -726,19 +696,15 @@ paths:
       summary: Create a semester
       description: Create a new semester. Requires role ADMIN. Role is verified server-side for the session user.
       operationId: addSemester
-      parameters:
-        - name: term
-          in: query
-          description: Semester term
-          required: true
-          schema:
-            type: string
-        - name: year
-          in: query
-          description: Semester year
-          required: true
-          schema:
-            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SemesterWriteRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/SemesterWriteRequest'
       responses:
         '201':
           description: Semester created successfully.
@@ -842,19 +808,19 @@ paths:
           description: Course ID, default = null
           required: false
           schema:
-            type: string
+            type: integer
         - name: semId
           in: query
           description: Semester ID, default = null
           required: false
           schema:
-            type: string
+            type: integer
         - name: profId
           in: query
           description: Professor ID, default = null
           required: false
           schema:
-            type: string
+            type: integer
       responses:
         '200':
           description: Paginated section list returned successfully.
@@ -881,42 +847,15 @@ paths:
           required: true
           schema:
             type: integer
-        - name: semId
-          in: query
-          description: Semester ID
-          required: true
-          schema:
-            type: integer
-        - name: profId
-          in: query
-          description: Professor ID
-          required: true
-          schema:
-            type: integer
-        - name: capacity
-          in: query
-          description: Section capacity
-          required: true
-          schema:
-            type: integer
-        - name: days
-          in: query
-          description: Section scheduled days
-          required: false
-          schema:
-            type: string
-        - name: startTm
-          in: query
-          description: Start time (HH:MM:SS)
-          required: false
-          schema:
-            type: string
-        - name: endTm
-          in: query
-          description: End time (HH:MM:SS)
-          required: false
-          schema:
-            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SectionWriteRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/SectionWriteRequest'
       responses:
         '201':
           description: Section created successfully.
@@ -928,7 +867,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Section'
         '400':
-          description: Invalid request body
+          description: Invalid query parameter
         '401':
           description: Invalid or missing session
         '403':
@@ -978,42 +917,15 @@ paths:
           required: true
           schema:
             type: integer
-        - name: semId
-          in: query
-          description: Semester ID
-          required: true
-          schema:
-            type: integer
-        - name: profId
-          in: query
-          description: Professor ID
-          required: true
-          schema:
-            type: integer
-        - name: capacity
-          in: query
-          description: Section capacity
-          required: true
-          schema:
-            type: integer
-        - name: days
-          in: query
-          description: Section scheduled days
-          required: false
-          schema:
-            type: string
-        - name: startTm
-          in: query
-          description: Start time (HH:MM:SS)
-          required: false
-          schema:
-            type: string
-        - name: endTm
-          in: query
-          description: End time (HH:MM:SS)
-          required: false
-          schema:
-            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SectionWriteRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/SectionWriteRequest'
       responses:
         '200':
           description: Section updated successfully.
@@ -1107,12 +1019,15 @@ paths:
           required: true
           schema:
             type: integer
-        - name: numCodes
-          in: query
-          description: Number of codes to generate
-          required: true
-          schema:
-            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccessCodeGenerateRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/AccessCodeGenerateRequest'
       responses:
         '200':
           description: New access codes generated successfully.
@@ -1148,7 +1063,7 @@ paths:
             type: integer
         - name: codes
           in: query
-          description: Access codes to revoke
+          description: Comma-separated access codes to revoke.
           required: true
           schema:
             type: string
@@ -1172,25 +1087,15 @@ paths:
       summary: Create an enrollment
       description: Create a new enrollment record. Requires role STUDENT or ADMIN. Role is verified server-side for the session user. Students may only manage their own enrollments.
       operationId: addEnrollment
-      parameters:
-        - name: secId
-          in: query
-          description: Section ID
-          required: true
-          schema:
-            type: integer
-        - name: stuId
-          in: query
-          description: Student ID
-          required: true
-          schema:
-            type: integer
-        - name: code
-          in: query
-          description: Access Code
-          required: true
-          schema:
-            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnrollmentCreateRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/EnrollmentCreateRequest'
       responses:
         '201':
           description: Enrollment created successfully.
@@ -1258,18 +1163,15 @@ paths:
           required: true
           schema:
             type: integer
-        - name: status
-          in: query
-          description: Enrollment status
-          required: true
-          schema:
-            type: string
-        - name: code
-          in: query
-          description: Access Code
-          required: true
-          schema:
-            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnrollmentUpdateRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/EnrollmentUpdateRequest'
       responses:
         '200':
           description: Enrollment updated successfully.
@@ -1325,6 +1227,33 @@ components:
       name: sid
       description: HttpOnly session cookie containing a session identifier. The server resolves the user from the session and verifies role server-side for restricted operations.
   schemas:
+    Health:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+    PasswordChangeRequest:
+      type: object
+      required:
+        - password
+      properties:
+        password:
+          type: string
+          format: password
     User:
       type: object
       properties:
@@ -1344,6 +1273,52 @@ components:
           type: integer
         role_details:
           type: string
+    UserUpdateRequest:
+      type: object
+      required:
+        - name
+        - email
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+    AdminUserCreateRequest:
+      type: object
+      required:
+        - name
+        - email
+        - detail
+        - type
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        detail:
+          type: string
+        type:
+          type: string
+          enum:
+            - ADMIN
+            - STUDENT
+            - PROFESSOR
+    AdminUserRoleUpdateRequest:
+      type: object
+      required:
+        - detail
+        - type
+      properties:
+        detail:
+          type: string
+        type:
+          type: string
+          enum:
+            - ADMIN
+            - STUDENT
+            - PROFESSOR
     Login:
       description: Login response containing the authenticated user. The server also sets a session cookie.
       type: object
@@ -1373,7 +1348,7 @@ components:
       type: object
       properties:
         User:
-          type: object
+          type: array
           $ref: '#/components/schemas/UserArray'
         Meta:
           type: object
@@ -1404,6 +1379,22 @@ components:
           type: integer
         subject:
           type: string
+    CourseWriteRequest:
+      type: object
+      required:
+        - code
+        - title
+        - desc
+        - cred
+      properties:
+        code:
+          type: string
+        title:
+          type: string
+        desc:
+          type: string
+        cred:
+          type: integer
     CourseArray:
       type: array
       items:
@@ -1415,7 +1406,7 @@ components:
       type: object
       properties:
         Course:
-          type: object
+          type: array
           $ref: '#/components/schemas/CourseArray'
         Meta:
           type: object
@@ -1424,11 +1415,21 @@ components:
       type: object
       properties:
         courseId:
-          type: string
+          type: integer
         courseCode:
           type: string
         title:
           type: string
+    PrerequisiteCreateRequest:
+      type: object
+      required:
+        - cId
+        - pId
+      properties:
+        cId:
+          type: integer
+        pId:
+          type: integer
     PrerequisiteArray:
       type: array
       items:
@@ -1441,6 +1442,16 @@ components:
       properties:
         semester_id:
           type: integer
+        term:
+          type: string
+        year:
+          type: integer
+    SemesterWriteRequest:
+      type: object
+      required:
+        - term
+        - year
+      properties:
         term:
           type: string
         year:
@@ -1469,10 +1480,35 @@ components:
           type: string
         start_time:
           type: string
-          format: date-time
+          description: Time of day in HH:MM:SS format.
+          pattern: '^\d{2}:\d{2}:\d{2}$'
         end_time:
           type: string
-          format: date-time
+          description: Time of day in HH:MM:SS format.
+          pattern: '^\d{2}:\d{2}:\d{2}$'
+    SectionWriteRequest:
+      type: object
+      required:
+        - semId
+        - profId
+        - capacity
+      properties:
+        semId:
+          type: integer
+        profId:
+          type: integer
+        capacity:
+          type: integer
+        days:
+          type: string
+        startTm:
+          type: string
+          description: Time of day in HH:MM:SS format.
+          pattern: '^\d{2}:\d{2}:\d{2}$'
+        endTm:
+          type: string
+          description: Time of day in HH:MM:SS format.
+          pattern: '^\d{2}:\d{2}:\d{2}$'
     SectionArray:
       type: array
       items:
@@ -1484,8 +1520,8 @@ components:
       type: object
       properties:
         Section:
-          type: object
-          $ref: '#/components/schemas/Section'
+          type: array
+          $ref: '#/components/schemas/SectionArray'
         Meta:
           type: object
           $ref: '#/components/schemas/Meta'
@@ -1505,8 +1541,54 @@ components:
             - waitlisted
             - dropped
             - completed
+    EnrollmentCreateRequest:
+      type: object
+      required:
+        - secId
+        - stuId
+        - code
+      properties:
+        secId:
+          type: integer
+        stuId:
+          type: integer
+        code:
+          type: string
+          description: Access code required to enroll in the section.
+    EnrollmentUpdateRequest:
+      type: object
+      required:
+        - status
+        - code
+      properties:
+        status:
+          type: string
+          enum:
+            - enrolled
+            - waitlisted
+            - dropped
+            - completed
+        code:
+          type: string
+          description: Access code used when promoting a waitlisted enrollment into enrolled.
+    AccessCodeGenerateRequest:
+      type: object
+      required:
+        - numCodes
+      properties:
+        numCodes:
+          type: integer
+          minimum: 1
     AccessCode:
       type: object
+      description: >
+        Dynamic access-code map for a section. Keys appear in pairs:
+        `codeN` stores the code value and `codeN_used` stores whether that same
+        code has been used. The object may contain any number of these pairs.
+      additionalProperties:
+        oneOf:
+          - type: string
+          - type: boolean
       properties:
         code#:
           type: string
@@ -1514,3 +1596,10 @@ components:
             - A3F1-9C4B
         code#_used:
           type: boolean
+      examples:
+        - code1: A3F1-9C4B
+          code1_used: false
+          code2: 7D2E-1A8F
+          code2_used: false
+          code3: C0B7-5E92
+          code3_used: false
