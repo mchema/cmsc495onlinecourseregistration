@@ -4,58 +4,58 @@ class AdminController {
 	constructor() {
 		this.a = new AdminService();
 		this.addUser = this.addUser.bind(this);
-		this.removeUser = this.removeUser.bind(this);
-		this.getAllUsers = this.getAllUsers.bind(this);
-		this.getUserByID = this.getUserByID.bind(this);
-		this.setUserRole = this.setUserRole.bind(this);
+		this.rmvUser = this.rmvUser.bind(this);
+		this.getUser = this.getUser.bind(this);
+		this.setRole = this.setRole.bind(this);
+		this.getUsers = this.getUsers.bind(this);
 	}
 
 	// Add New User
 	async addUser(req, res, next) {
 		try {
-			const { name, email, roleDetails, userType } = req.body;
-			await this.a.addUser(name, email, roleDetails, userType);
+			const { name, email, detail, type } = req.body;
+			const user = await this.a.addUser(name, email, detail, type);
 
-			return res.status(201).json({ message: 'User created successfully.' });
+			return res.status(201).json(user);
 		} catch (err) {
 			next(err);
 		}
 	}
 
 	// Remove User
-	async removeUser(req, res, next) {
+	async rmvUser(req, res, next) {
 		try {
 			const { id } = req.params;
-			await this.a.removeUser(id, req.user);
+			await this.a.rmvUser(id, req.user);
 
-			return res.status(200).json({ message: 'User removed successfully.' });
+			return res.status(200).end();
 		} catch (err) {
 			next(err);
 		}
 	}
 
 	// Set User Type (Student / Professor)
-	async setUserRole(req, res, next) {
+	async setRole(req, res, next) {
 		try {
 			const { id } = req.params;
-			const { userType, roleDetails } = req.body;
-			await this.a.setUserRole(id, roleDetails, userType, null, req.user);
+			const { type, detail } = req.body;
+			const user = await this.a.setRole(id, detail, type, null, req.user);
 
-			return res.status(200).json({ message: 'User role updated successfully.' });
+			return res.status(200).json(user);
 		} catch (err) {
 			next(err);
 		}
 	}
 
 	// View All Users
-	async getAllUsers(req, res, next) {
+	async getUsers(req, res, next) {
 		try {
 			const { page = 1, limit = 10, search = '', role = null } = req.query;
-			const result = await this.a.getAllUsers(page, limit, search, role);
+			const result = await this.a.getUsers(page, limit, search, role);
 
 			return res.status(200).json({
-				users: result.data,
-				meta: result.meta,
+				User: result.data.map((u) => ({ User: u })),
+				Meta: result.meta,
 			});
 		} catch (err) {
 			next(err);
@@ -63,12 +63,12 @@ class AdminController {
 	}
 
 	// Get User by ID
-	async getUserByID(req, res, next) {
+	async getUser(req, res, next) {
 		try {
 			const { id } = req.params;
-			const user = await this.a.getUserByID(id);
+			const user = await this.a.getUser(id);
 
-			return res.status(200).json({ user });
+			return res.status(200).json(user);
 		} catch (err) {
 			next(err);
 		}

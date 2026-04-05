@@ -5,25 +5,13 @@ export const idParamSchema = z.object({
     id: z.coerce.number().int().positive(),
 });
 
-// Validation schema for course ID parameter
-export const courseIdParamSchema = z.object({
-    courseId: z.coerce.number().int().positive(),
+export const cIdParamSchema = z.object({
+    cId: z.coerce.number().int().positive(),
 });
 
-// Validation schema for course ID parameter
-export const prerequisiteIdParamSchema = z.object({
-    courseId: z.coerce.number().int().positive(),
-    prerequisiteId: z.coerce.number().int().positive(),
-});
-
-// Validation schema for section ID parameter
-export const sectionIdParamSchema = z.object({
-    sectionId: z.coerce.number().int().positive(),
-});
-
-// Validation schema for semester ID parameter
-export const semesterIdParamSchema = z.object({
-    semesterId: z.coerce.number().int().positive(),
+export const prereqParamSchema = z.object({
+    cId: z.coerce.number().int().positive(),
+    pId: z.coerce.number().int().positive(),
 });
 
 // Validation schema for pagination and search query parameters, with defaults for page and limit, and optional search string
@@ -31,9 +19,4 @@ export const paginationQuerySchema = z.object({
     page: z.coerce.number().int().positive().default(1),
     limit: z.coerce.number().int().positive().max(100).default(10),
     search: z.string().trim().default(''),
-});
-
-// Validation schema for enrollment ID parameter
-export const enrollmentIdParamSchema = z.object({
-    enrollmentId: z.coerce.number().int().positive(),
 });

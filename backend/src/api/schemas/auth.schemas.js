@@ -8,7 +8,7 @@ export const loginSchema = z.object({
 
 // Validation schema for changing password
 export const changePasswordSchema = z.object({
-    newPassword: z.string().trim().min(1),
+    password: z.string().trim().min(1),
 });
 
 // Validation schema for updating user information
