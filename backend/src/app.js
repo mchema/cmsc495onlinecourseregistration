@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+dotenv.config();
 /* eslint-disable no-unused-vars */
 import express from 'express';
 import cors from 'cors';
@@ -13,7 +15,14 @@ import adminRoutes from './api/routes/admin.routes.js';
 const app = express();
 
 // Core middleware
-app.use(cors());
+//app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+}));
+
 app.use(express.json());
 app.use(morgan('dev'));
 
