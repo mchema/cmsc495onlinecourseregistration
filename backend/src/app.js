@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+dotenv.config();
 /* eslint-disable no-unused-vars */
 import express from 'express';
 import cors from 'cors';
@@ -16,12 +18,23 @@ import { config as sessionConfig } from './config/session.config.js';
 const app = express();
 
 // Core middleware
+<<<<<<< HEAD
 app.use(
     cors({
         origin: true,
         credentials: true,
     })
 );
+=======
+//app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+}));
+
+>>>>>>> 7d197c4a4f3d50fcb24a25b6a865114cf3c424ae
 app.use(express.json());
 app.use(morgan('dev'));
 app.use(session(sessionConfig()));
