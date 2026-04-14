@@ -12,11 +12,15 @@ class AuthController {
 		this.updUser = this.updUser.bind(this);
 	}
 
+	
 	// Express Login Method
 	async login(req, res, next) {
 		try {
 			const { email, password } = req.body;
 			const result = await this.a.login(email, password);
+			console.log('LOGIN RESULT USER:', result.user);
+			console.log('LOGIN RESULT USER ID:', result.user?.id);
+			
 			await this.s.establish(req, result.user.id);
 
 			return res.status(200).json({

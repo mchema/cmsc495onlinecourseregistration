@@ -1,4 +1,53 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+
+import LoginPage from '../pages/LoginPage.jsx';
+import StudentDashboard from '../pages/StudentDashboard.jsx';
+import CourseCatalog from '../pages/CourseCatalog.jsx';
+import AdminDashboard from '../pages/admin/AdminDashboard.jsx';
+import ProtectedRoute from '../components/layout/shared/ProtectedRoute.jsx';
+
+// Add this later when ready
+// import ChangePasswordPage from '../pages/ChangePasswordPage.jsx';
+
+export default function AppRoutes() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Public */}
+        <Route path="/login" element={<LoginPage />} />
+
+        {/* Add this route when you create the page */}
+        {/* <Route path="/change-password" element={<ChangePasswordPage />} /> */}
+
+        {/* Student-only routes */}
+        <Route element={<ProtectedRoute allowedRoles={['STUDENT']} />}>
+          <Route path="/student" element={<StudentDashboard />} />
+          <Route path="/catalog" element={<CourseCatalog />} />
+        </Route>
+
+        {/* Admin-only routes */}
+        <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+          <Route path="/admin" element={<AdminDashboard />} />
+        </Route>
+
+        {/* Default/fallback */}
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+
+
+
+/* v.1 
+-it only checks user
+-it does not wait for auth/session restoration
+-it does not handle firstLogin
+-it compares roles as lowercase strings like "student" and "admin"
+
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
 import LoginPage from '../pages/LoginPage.jsx';
@@ -19,10 +68,10 @@ export default function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public */}
+        {/* Public }
         <Route path="/login" element={<LoginPage />} />
 
-        {/* Student routes */}
+        {/* Student routes 
         <Route
           path="/student"
           element={
@@ -40,7 +89,7 @@ export default function AppRoutes() {
           }
         />
 
-        {/* Admin routes */}
+        {/* Admin routes 
         <Route
           path="/admin"
           element={
@@ -50,9 +99,10 @@ export default function AppRoutes() {
           }
         />
 
-        {/* Fallback */}
+        {/* Fallback 
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
   );
 }
+*/

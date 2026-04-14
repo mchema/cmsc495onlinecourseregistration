@@ -6,7 +6,22 @@ class SessionService {
 		this.a = new AuthService();
 	}
 
+	//v.2 of createPId to harden (fails loudly)
 	createPld(u) {
+		const id = u.getUserID();
+		const ver = u.getSessVer();
+
+		if (!id) {
+			throw new Error('createPld failed: missing userId');
+		}
+
+		return {
+			userId: id,
+			sess_ver: ver,
+			sessVer: ver,
+	};
+}
+	/*createPld(u) {
 		const id = u.getUserID();
 		const ver = u.getSessVer();
 
@@ -15,7 +30,7 @@ class SessionService {
 			sess_ver: ver,
 			sessVer: ver,
 		};
-	}
+	}*/
 
 	async getPld(id) {
 		const u = await this.a.getUser({ id });
@@ -46,33 +61,49 @@ class SessionService {
 
 		await new Promise((resolve, reject) => {
 			req.session.regenerate((err) => {
-				if (err) {
-					reject(err);
-					return;
-				}
-
-				resolve();
+			if (err) {
+				reject(err);
+				return;
+			}
+			resolve();
 			});
 		});
 
-		req.session.auth = p;
+		//Change establish() so it uses the already-built payload’s userId, not Number(id). -mark
+		req.session.auth = {
+			userId: p.userId,
+			sess_ver: p?.sessVer ?? p?.sess_ver ?? 0,
+			sessVer: p?.sessVer ?? p?.sess_ver ?? 0,
+			};
+
+		if (!req.session.auth.userId) {
+			throw new Error(`establish failed: invalid session userId (${req.session.auth.userId})`);
+			}
+
+		/*req.session.auth = {
+			userId: Number(id),
+			sess_ver: p?.sessVer ?? p?.sess_ver ?? 0,
+			sessVer: p?.sessVer ?? p?.sess_ver ?? 0,
+		};*/
+
 		req.session.metadata = {
 			ipAddress: req.ip ?? null,
 			userAgent: req.get('user-agent') ?? null,
 		};
 
+		console.log('SESSION BEFORE SAVE:', req.session.auth);
+
 		await new Promise((resolve, reject) => {
 			req.session.save((err) => {
-				if (err) {
-					reject(err);
-					return;
-				}
-
-				resolve();
+			if (err) {
+				reject(err);
+				return;
+			}
+			resolve();
 			});
 		});
 
-		return p;
+		return req.session.auth;
 	}
 
 	async refresh(req, id) {

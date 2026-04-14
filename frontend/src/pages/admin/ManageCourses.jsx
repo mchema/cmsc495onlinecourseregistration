@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react';
-import client from '../../api/client.js';
+import {
+  getCourses,
+  createCourse,
+  updateCourse,
+  deleteCourse,
+} from '../../api/courses.js';
 
 const EMPTY_FORM = {
   code: '',
-  name: '',
-  description: '',
-  credits: '',
+  title: '',
+  desc: '',
+  cred: 3,
 };
 
 export default function ManageCourses() {
   const [courses, setCourses] = useState([]);
+  const [meta, setMeta] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [toast, setToast] = useState({ message: '', type: '' });
@@ -17,18 +23,25 @@ export default function ManageCourses() {
   const [editingCourse, setEditingCourse] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
-  const [search, setSearch] = useState('');
+
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
 
   useEffect(() => {
-    fetchCourses();
-  }, []);
+    fetchCourses(page);
+  }, [page]);
 
-  const fetchCourses = async () => {
+  const fetchCourses = async (nextPage = 1) => {
     try {
-      const { data } = await client.get('/api/courses');
-      setCourses(data);
+      setLoading(true);
+      setError('');
+
+      const data = await getCourses({ page: nextPage, limit });
+
+      setCourses(data?.Course || []);
+      setMeta(data?.Meta || null);
     } catch (err) {
-      setError('Failed to load courses.');
+      setError(err.response?.data?.error || 'Failed to load courses.');
     } finally {
       setLoading(false);
     }
@@ -46,12 +59,13 @@ export default function ManageCourses() {
   };
 
   const openEditModal = (course) => {
-    setEditingCourse(course);
+    const c = course?.Course || course;
+    setEditingCourse(c);
     setForm({
-      code: course.code,
-      name: course.name,
-      description: course.description || '',
-      credits: course.credits || '',
+      code: c.course_code,
+      title: c.title,
+      desc: c.description,
+      cred: c.credits,
     });
     setShowModal(true);
   };
@@ -63,28 +77,31 @@ export default function ManageCourses() {
   };
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setForm((prev) => ({
+      ...prev,
+      [name]: name === 'cred' ? Number(value) : value,
+    }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+
     try {
       if (editingCourse) {
-        await client.put(`/api/courses/${editingCourse.id}`, form);
-        setCourses(prev =>
-          prev.map(c => c.id === editingCourse.id ? { ...c, ...form } : c)
-        );
+        await updateCourse(editingCourse.course_id, form);
         showToast('Course updated successfully.');
       } else {
-        const { data } = await client.post('/api/courses', form);
-        setCourses(prev => [...prev, data]);
+        await createCourse(form);
         showToast('Course created successfully.');
       }
+
       closeModal();
+      await fetchCourses(page);
     } catch (err) {
       showToast(
-        err.response?.data?.message || 'Action failed. Please try again.',
+        err.response?.data?.error || 'Action failed. Please try again.',
         'error'
       );
     } finally {
@@ -93,138 +110,143 @@ export default function ManageCourses() {
   };
 
   const handleDelete = async (courseId) => {
-    if (!window.confirm('Delete this course? This may also remove associated sections.')) return;
+    if (!window.confirm('Delete this course?')) return;
+
     try {
-      await client.delete(`/api/courses/${courseId}`);
-      setCourses(prev => prev.filter(c => c.id !== courseId));
+      await deleteCourse(courseId);
       showToast('Course deleted.');
+      await fetchCourses(page);
     } catch (err) {
+      console.error('DELETE COURSE ERROR:', err.response?.data || err);
       showToast(
-        err.response?.data?.message || 'Failed to delete course.',
+        err.response?.data?.error || 'Failed to delete course.',
         'error'
       );
     }
   };
 
-  const filtered = courses.filter(
-    (c) =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.code.toLowerCase().includes(search.toLowerCase())
-  );
-
   return (
     <div>
-
-      {/* Toast */}
       {toast.message && (
         <div
-          className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-lg text-white text-sm
-            ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-500'}`}
+          className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-lg text-white text-sm ${
+            toast.type === 'success' ? 'bg-green-600' : 'bg-red-500'
+          }`}
         >
           {toast.message}
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-gray-800">Manage Courses</h2>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h2 className="text-xl font-bold text-gray-800">Manage Courses</h2>
+          {meta && (
+            <p className="text-sm text-gray-500 mt-1">
+              Total courses: {meta.total ?? courses.length}
+            </p>
+          )}
+        </div>
         <button onClick={openCreateModal} className="btn-primary">
           + Create Course
         </button>
       </div>
 
-      {/* Search */}
-      <input
-        type="text"
-        placeholder="Search by name or code..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="input mb-6"
-      />
-
-      {/* Error */}
       {error && (
         <div className="bg-red-50 border border-red-300 text-red-600 text-sm rounded-lg px-4 py-3 mb-5">
           {error}
         </div>
       )}
 
-      {/* Loading Skeleton */}
       {loading && (
         <div className="space-y-3">
-          {[1, 2, 3].map(i => (
+          {[1, 2, 3, 4].map((i) => (
             <div key={i} className="bg-white rounded-xl shadow p-4 animate-pulse">
               <div className="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
-              <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+              <div className="h-3 bg-gray-200 rounded w-1/3"></div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Courses Table */}
-      {!loading && filtered.length > 0 && (
+      {!loading && courses.length > 0 && (
         <div className="bg-white rounded-xl shadow overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
               <tr>
                 <th className="px-5 py-3 text-left">Code</th>
-                <th className="px-5 py-3 text-left">Name</th>
+                <th className="px-5 py-3 text-left">Title</th>
                 <th className="px-5 py-3 text-left">Credits</th>
-                <th className="px-5 py-3 text-left">Description</th>
                 <th className="px-5 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filtered.map(course => (
-                <tr key={course.id} className="hover:bg-gray-50 transition">
-                  <td className="px-5 py-3 font-mono text-blue-700 font-medium">
-                    {course.code}
-                  </td>
-                  <td className="px-5 py-3 font-medium text-gray-800">
-                    {course.name}
-                  </td>
-                  <td className="px-5 py-3 text-gray-500">
-                    {course.credits ?? '—'}
-                  </td>
-                  <td className="px-5 py-3 text-gray-400 max-w-xs truncate">
-                    {course.description || '—'}
-                  </td>
-                  <td className="px-5 py-3 text-right space-x-2">
-                    <button
-                      onClick={() => openEditModal(course)}
-                      className="text-blue-600 hover:underline text-sm"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(course.id)}
-                      className="text-red-500 hover:underline text-sm"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {courses.map((entry, index) => {
+                const course = entry?.Course || entry;
+                return (
+                  <tr key={course?.course_id ?? index} className="hover:bg-gray-50 transition">
+                    <td className="px-5 py-3 font-medium text-gray-800">{course?.course_code}</td>
+                    <td className="px-5 py-3 text-gray-500">{course?.title}</td>
+                    <td className="px-5 py-3 text-gray-500">{course?.credits}</td>
+                    <td className="px-5 py-3 text-right space-x-2">
+                      <button
+                        onClick={() => openEditModal(course)}
+                        className="text-blue-600 hover:underline text-sm"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(course.course_id)}
+                        className="text-red-500 hover:underline text-sm"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
 
-      {/* Empty State */}
-      {!loading && filtered.length === 0 && !error && (
-        <div className="bg-white rounded-xl shadow p-8 text-center text-gray-500">
-          <p className="font-medium">No courses found.</p>
-          <p className="text-sm mt-1">
-            {search ? 'Try a different search term.' : 'Create the first course to get started.'}
-          </p>
+      {!loading && meta && (meta.totalPages ?? 1) > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <button
+            onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+            disabled={page === 1}
+            className="px-4 py-2 text-sm rounded-lg border disabled:opacity-50"
+          >
+            Previous
+          </button>
+
+          <span className="text-sm text-gray-600">
+            Page {meta.page ?? page} of {meta.totalPages ?? 1}
+          </span>
+
+          <button
+            onClick={() =>
+              setPage((prev) =>
+                Math.min(prev + 1, meta.totalPages ?? prev + 1)
+              )
+            }
+            disabled={page >= (meta.totalPages ?? 1)}
+            className="px-4 py-2 text-sm rounded-lg border disabled:opacity-50"
+          >
+            Next
+          </button>
         </div>
       )}
 
-      {/* Modal */}
+      {!loading && courses.length === 0 && !error && (
+        <div className="bg-white rounded-xl shadow p-8 text-center text-gray-500">
+          <p className="font-medium">No courses found.</p>
+          <p className="text-sm mt-1">Create the first course to get started.</p>
+        </div>
+      )}
+
       {showModal && (
         <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 z-50">
-
             <h3 className="text-lg font-bold text-gray-800 mb-5">
               {editingCourse ? 'Edit Course' : 'Create New Course'}
             </h3>
@@ -235,28 +257,40 @@ export default function ManageCourses() {
                   Course Code
                 </label>
                 <input
-                  type="text"
                   name="code"
                   value={form.code}
                   onChange={handleChange}
                   required
                   className="input"
-                  placeholder="e.g. CMSC495"
+                  placeholder="CMSC340"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Course Name
+                  Title
                 </label>
                 <input
-                  type="text"
-                  name="name"
-                  value={form.name}
+                  name="title"
+                  value={form.title}
                   onChange={handleChange}
                   required
                   className="input"
-                  placeholder="e.g. Capstone in Computer Science"
+                  placeholder="Web Programming"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  name="desc"
+                  value={form.desc}
+                  onChange={handleChange}
+                  required
+                  className="input min-h-[100px]"
+                  placeholder="Course description"
                 />
               </div>
 
@@ -266,27 +300,12 @@ export default function ManageCourses() {
                 </label>
                 <input
                   type="number"
-                  name="credits"
-                  value={form.credits}
+                  name="cred"
+                  value={form.cred}
                   onChange={handleChange}
-                  className="input"
-                  placeholder="e.g. 3"
                   min="1"
-                  max="6"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                <textarea
-                  name="description"
-                  value={form.description}
-                  onChange={handleChange}
-                  className="input resize-none"
-                  rows={3}
-                  placeholder="Brief course description..."
+                  required
+                  className="input"
                 />
               </div>
 
@@ -305,15 +324,15 @@ export default function ManageCourses() {
                 >
                   {submitting
                     ? 'Saving...'
-                    : editingCourse ? 'Save Changes' : 'Create Course'}
+                    : editingCourse
+                    ? 'Save Changes'
+                    : 'Create Course'}
                 </button>
               </div>
             </form>
-
           </div>
         </div>
       )}
-
     </div>
   );
 }
