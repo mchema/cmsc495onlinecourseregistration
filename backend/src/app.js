@@ -34,7 +34,6 @@ app.use(cors({
   credentials: true,
 }));
 
->>>>>>> 7d197c4a4f3d50fcb24a25b6a865114cf3c424ae
 app.use(express.json());
 app.use(morgan('dev'));
 app.use(session(sessionConfig()));
