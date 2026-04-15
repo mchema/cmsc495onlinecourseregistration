@@ -13,6 +13,7 @@ const c = new EnrollmentController();
 r.use(auth, flm(), roles('ADMIN', 'STUDENT'));
 
 // Protected Enrollment Routes (Requires ADMIN or STUDENT authorization)
+r.get('/', c.listEnrollments);
 r.get('/:id', params(id), c.getEnrollment);
 r.post('/', body(create), c.addEnrollment);
 r.put('/:id', params(id), body(upd), c.updEnrollment);

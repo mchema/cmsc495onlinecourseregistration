@@ -10,7 +10,7 @@ class EnrollmentService {
         this.pre = new PrerequisiteService();
     }
 
-    async addEnroll(studentId, sectionId, actingUser) {
+        async addEnroll(studentId, sectionId, actingUser) {
         this.verifyOwn(studentId, actingUser);
 
         const s = await db.query('SELECT * FROM students WHERE student_id = ?', [studentId]);
@@ -264,6 +264,90 @@ class EnrollmentService {
         } finally {
             db.releaseConnection(con);
         }
+    }
+
+    async listEnrollments(actingUser, query = {}) {
+        if (!actingUser) {
+            throw new Errors.AuthenticationError('Authentication required.');
+        }
+
+        let sql = `
+            SELECT
+                e.enrollment_id,
+                e.student_id,
+                e.section_id,
+                e.status,
+                s.course_id,
+                s.semester_id,
+                s.professor_id,
+                s.capacity,
+                s.days,
+                s.start_time,
+                s.end_time,
+                c.course_code,
+                c.title AS course_title,
+                sem.term AS semester_term,
+                sem.year AS semester_year,
+                u.name AS professor_name
+            FROM enrollments e
+            INNER JOIN sections s ON e.section_id = s.section_id
+            INNER JOIN courses c ON s.course_id = c.course_id
+            LEFT JOIN semesters sem ON s.semester_id = sem.semester_id
+            LEFT JOIN professors p ON s.professor_id = p.professor_id
+            LEFT JOIN users u ON p.user_id = u.user_id
+        `;
+
+        const params = [];
+        const where = [];
+
+        if (actingUser.role === 'STUDENT') {
+            where.push('e.student_id = ?');
+            params.push(Number(actingUser.role_id));
+        } else if (actingUser.role === 'ADMIN') {
+            if (query.stuId) {
+                where.push('e.student_id = ?');
+                params.push(Number(query.stuId));
+            }
+
+            if (query.secId) {
+                where.push('e.section_id = ?');
+                params.push(Number(query.secId));
+            }
+
+            if (query.status) {
+                where.push('e.status = ?');
+                params.push(query.status);
+            }
+        } else {
+            throw new Errors.AuthorizationError('Only ADMIN or STUDENT users may list enrollments.');
+        }
+
+        if (where.length > 0) {
+            sql += ` WHERE ${where.join(' AND ')}`;
+        }
+
+        sql += ' ORDER BY e.enrollment_id ASC';
+
+        const rows = await db.query(sql, params);
+
+        return rows.map((row) => ({
+            enrollment_id: row.enrollment_id,
+            student_id: row.student_id,
+            section_id: row.section_id,
+            status: row.status,
+            course_id: row.course_id,
+            semester_id: row.semester_id,
+            professor_id: row.professor_id,
+            capacity: row.capacity,
+            days: row.days,
+            start_time: row.start_time,
+            end_time: row.end_time,
+            course_code: row.course_code,
+            course_title: row.course_title,
+            semester_term: row.semester_term,
+            semester_year: row.semester_year,
+            professor_name: row.professor_name,
+        }));
     }
 }
 

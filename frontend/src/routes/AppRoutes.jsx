@@ -5,6 +5,7 @@ import StudentDashboard from '../pages/StudentDashboard.jsx';
 import CourseCatalog from '../pages/CourseCatalog.jsx';
 import AdminDashboard from '../pages/admin/AdminDashboard.jsx';
 import ProtectedRoute from '../components/layout/shared/ProtectedRoute.jsx';
+import ChangePasswordPage from '../pages/ChangePasswordPage.jsx';
 
 // Add this later when ready
 // import ChangePasswordPage from '../pages/ChangePasswordPage.jsx';
@@ -16,8 +17,8 @@ export default function AppRoutes() {
         {/* Public */}
         <Route path="/login" element={<LoginPage />} />
 
-        {/* Add this route when you create the page */}
-        {/* <Route path="/change-password" element={<ChangePasswordPage />} /> */}
+        {/* Add this route when you create the change password page */}
+        <Route path="/change-password" element={<ChangePasswordPage />} />
 
         {/* Student-only routes */}
         <Route element={<ProtectedRoute allowedRoles={['STUDENT']} />}>

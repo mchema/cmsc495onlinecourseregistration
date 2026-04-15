@@ -52,7 +52,7 @@ app.use((req, res) => {
 // Central Error handler
 /* eslint-disable-next-line no-unused-vars */
 app.use((err, req, res, next) => {
-  console.error('UNHANDLED ERROR:', err);
+  //console.error('UNHANDLED ERROR:', err);--used during dev
 
   const status = err.statusCode || err.status || 500;
   const payload = {

@@ -1,26 +1,38 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import client from '../api/client.js';
+import { getCatalogData } from '../api/catalog.js';
+import { createEnrollment } from '../api/enrollment.js';
 
 export default function CourseCatalog() {
   const { user, logout } = useAuth();
+
   const [courses, setCourses] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [toast, setToast] = useState({ message: '', type: '' });
+  const [submittingSectionId, setSubmittingSectionId] = useState(null);
 
   useEffect(() => {
-    fetchCourses();
+    fetchCatalog();
   }, []);
 
-  const fetchCourses = async () => {
+  const fetchCatalog = async () => {
     try {
-      const { data } = await client.get('/api/courses');
-      setCourses(data);
+      setLoading(true);
+      setError('');
+
+      const data = await getCatalogData({
+        coursePage: 1,
+        courseLimit: 100,
+        sectionPage: 1,
+      });
+
+      setCourses(data.courses || []);
     } catch (err) {
-      setError('Failed to load courses. Please try again.');
+      //console.error('CATALOG LOAD ERROR:', err.response?.data || err);--used during dev
+      setError(err.response?.data?.error || 'Failed to load course catalog.');
     } finally {
       setLoading(false);
     }
@@ -33,42 +45,65 @@ export default function CourseCatalog() {
 
   const handleEnroll = async (sectionId) => {
     try {
-      await client.post('/api/enrollments', { section_id: sectionId });
+      setSubmittingSectionId(sectionId);
+
+      await createEnrollment({
+        secId: Number(sectionId),
+        stuId: Number(user?.role_id),
+      });
+
       showToast('Successfully enrolled!', 'success');
+      await fetchCatalog(); //refresh enrollablel sections
     } catch (err) {
-      // Backend handles conflict, capacity, and prereq errors — display them directly
+      //console.error('ENROLL ERROR:', err.response?.data || err);--used during dev
       showToast(
-        err.response?.data?.message || 'Enrollment failed. Please try again.',
+        err.response?.data?.error || 'Enrollment failed. Please try again.',
         'error'
       );
+    } finally {
+      setSubmittingSectionId(null);
     }
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     window.location.href = '/login';
   };
 
-  const filtered = courses.filter(
-    (c) =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.code.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    if (!q) return courses;
+
+    return courses.filter((course) => {
+      const code = String(course.course_code || '').toLowerCase();
+      const title = String(course.title || '').toLowerCase();
+      const subject = String(course.subject || '').toLowerCase();
+
+      return code.includes(q) || title.includes(q) || subject.includes(q);
+    });
+  }, [courses, search]);
+
+  const formatMeeting = (section) => {
+    if (!section.days && !section.start_time && !section.end_time) {
+      return 'Async';
+    }
+
+    return `${section.days || ''} ${section.start_time || ''} - ${section.end_time || ''}`.trim();
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
-
-      {/* Toast Notification */}
       {toast.message && (
         <div
-          className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-lg text-white text-sm transition-all
-            ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-500'}`}
+          className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-lg text-white text-sm ${
+            toast.type === 'success' ? 'bg-green-600' : 'bg-red-500'
+          }`}
         >
           {toast.message}
         </div>
       )}
 
-      {/* Navbar */}
       <nav className="bg-white shadow px-6 py-4 flex justify-between items-center">
         <h1 className="text-xl font-bold text-gray-800">Course Registration</h1>
         <div className="flex items-center gap-4">
@@ -85,30 +120,26 @@ export default function CourseCatalog() {
         </div>
       </nav>
 
-      {/* Main Content */}
       <main className="max-w-5xl mx-auto p-6">
         <h2 className="text-2xl font-bold text-gray-800 mb-2">Course Catalog</h2>
         <p className="text-gray-500 text-sm mb-6">
           Browse available courses and enroll in a section.
         </p>
 
-        {/* Search Bar */}
         <input
           type="text"
-          placeholder="Search by course name or code..."
+          placeholder="Search by course code, title, or subject..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="input mb-6"
         />
 
-        {/* Error */}
         {error && (
           <div className="bg-red-50 border border-red-300 text-red-600 text-sm rounded-lg px-4 py-3 mb-5">
             {error}
           </div>
         )}
 
-        {/* Loading Skeleton */}
         {loading && (
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
@@ -121,7 +152,6 @@ export default function CourseCatalog() {
           </div>
         )}
 
-        {/* Empty State */}
         {!loading && filtered.length === 0 && !error && (
           <div className="bg-white rounded-xl shadow p-8 text-center text-gray-500">
             <p className="text-lg font-medium">No courses found.</p>
@@ -129,64 +159,51 @@ export default function CourseCatalog() {
           </div>
         )}
 
-        {/* Course Cards */}
         {!loading && filtered.length > 0 && (
           <div className="space-y-6">
             {filtered.map((course) => (
-              <div key={course.id} className="bg-white rounded-xl shadow p-5">
-
-                {/* Course Header */}
+              <div key={course.course_id} className="bg-white rounded-xl shadow p-5">
                 <div className="mb-3">
                   <h3 className="text-lg font-bold text-gray-800">
-                    {course.code} — {course.name}
+                    {course.course_code} — {course.title}
                   </h3>
                   {course.description && (
                     <p className="text-sm text-gray-500 mt-1">{course.description}</p>
                   )}
-                  {course.credits && (
-                    <p className="text-xs text-gray-400 mt-1">{course.credits} credit(s)</p>
-                  )}
+                  <div className="flex gap-4 mt-1 text-xs text-gray-400">
+                    <span>{course.credits} credit(s)</span>
+                    {course.subject && <span>{course.subject}</span>}
+                  </div>
                 </div>
 
-                {/* Sections */}
                 <div className="space-y-2">
                   {course.sections && course.sections.length > 0 ? (
-                    course.sections.map((section) => {
-                      const isFull = section.enrolled >= section.capacity;
-                      return (
-                        <div
-                          key={section.id}
-                          className="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-3"
-                        >
-                          <div className="text-sm text-gray-700">
-                            <span className="font-medium">
-                              Section {section.section_number}
-                            </span>
-                            &nbsp;|&nbsp;{section.instructor}
-                            &nbsp;|&nbsp;{section.schedule}
-                            &nbsp;|&nbsp;{section.location}
-                            &nbsp;|&nbsp;
-                            <span className={isFull ? 'text-red-500' : 'text-green-600'}>
-                              {section.enrolled}/{section.capacity} seats
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => handleEnroll(section.id)}
-                            disabled={isFull}
-                            className="btn-primary text-sm py-1 px-4 ml-4 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {isFull ? 'Full' : 'Enroll'}
-                          </button>
+                    course.sections.map((section) => (
+                      <div
+                        key={section.section_id}
+                        className="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-3"
+                      >
+                        <div className="text-sm text-gray-700">
+                          <span className="font-medium">Section {section.section_id}</span>
+                          <span>&nbsp;|&nbsp;{formatMeeting(section)}</span>
+                          <span>&nbsp;|&nbsp;Capacity: {section.capacity}</span>
                         </div>
-                      );
-                    })
+
+                        <button
+                          onClick={() => handleEnroll(section.section_id)}
+                          disabled={submittingSectionId === section.section_id}
+                          className="btn-primary text-sm py-1 px-4 ml-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {submittingSectionId === section.section_id ? 'Enrolling...' : 'Enroll'}
+                        </button>
+                      </div>
+                    ))
                   ) : (
                     <p className="text-sm text-gray-400 italic">
                       No sections available for this course.
                     </p>
                   )}
                 </div>
-
               </div>
             ))}
           </div>

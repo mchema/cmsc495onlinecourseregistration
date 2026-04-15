@@ -18,8 +18,8 @@ class AuthController {
 		try {
 			const { email, password } = req.body;
 			const result = await this.a.login(email, password);
-			console.log('LOGIN RESULT USER:', result.user);
-			console.log('LOGIN RESULT USER ID:', result.user?.id);
+			//console.log('LOGIN RESULT USER:', result.user); -- used during dev
+			//console.log('LOGIN RESULT USER ID:', result.user?.id);--used during dev
 			
 			await this.s.establish(req, result.user.id);
 

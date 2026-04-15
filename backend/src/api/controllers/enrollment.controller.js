@@ -7,6 +7,17 @@ class EnrollmentController {
 		this.updEnrollment = this.updEnrollment.bind(this);
 		this.getEnrollment = this.getEnrollment.bind(this);
 		this.rmvEnrollment = this.rmvEnrollment.bind(this);
+		this.listEnrollments = this.listEnrollments.bind(this);
+	}
+
+	//backend endpoint for listing enrollments for the logged-in student
+	async listEnrollments(req, res, next) {
+		try {
+			const enrollments = await this.e.listEnrollments(req.user, req.query);
+			return res.status(200).json(enrollments);
+		} catch (err) {
+			next(err);
+		}
 	}
 
 	// Express Add Enrollment Method

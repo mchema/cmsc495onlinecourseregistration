@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-//import { logout as logoutApi } from '../api/auth.js';
-import client from '../api/client.js';
+import { listEnrollments, updateEnrollment } from '../api/enrollment.js';
 
 export default function StudentDashboard() {
   const { user, logout } = useAuth();
   const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [toast, setToast] = useState({ message: '', type: '' });
+  const [droppingId, setDroppingId] = useState(null);
 
   useEffect(() => {
     fetchEnrollments();
@@ -16,42 +17,70 @@ export default function StudentDashboard() {
 
   const fetchEnrollments = async () => {
     try {
-      const { data } = await client.get(`/api/enrollments/student/${user.id}`);
-      setEnrollments(data);
+      setLoading(true);
+      setError('');
+      const data = await listEnrollments();
+      setEnrollments(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError('Failed to load your schedule. Please try again.');
+      //console.error('ENROLLMENT LOAD ERROR:', err.response?.data || err); --used during dev
+      setError(err.response?.data?.error || 'Failed to load your schedule. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast({ message: '', type: '' }), 3500);
+  };
+
   const handleDrop = async (enrollmentId) => {
     if (!window.confirm('Are you sure you want to drop this course?')) return;
+
     try {
-      await client.delete(`/api/enrollments/${enrollmentId}`);
-      setEnrollments(prev => prev.filter(e => e.id !== enrollmentId));
+      setDroppingId(enrollmentId);
+      await updateEnrollment(enrollmentId, { status: 'dropped' });
+      setError('');
+      showToast('Course dropped successfully.', 'success');
+      await fetchEnrollments();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to drop course.');
+      //console.error('DROP ERROR:', err.response?.data || err);-- used during dev
+      setError(err.response?.data?.error || 'Failed to drop course.');
+    } finally {
+      setDroppingId(null);
     }
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     window.location.href = '/login';
+  };
+
+  const formatMeeting = (enrollment) => {
+    if (!enrollment.days && !enrollment.start_time && !enrollment.end_time) {
+      return 'Async';
+    }
+
+    return `${enrollment.days || ''} ${enrollment.start_time || ''} - ${enrollment.end_time || ''}`.trim();
   };
 
   return (
     <div className="min-h-screen bg-gray-100">
+      {toast.message && (
+        <div
+          className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-lg text-white text-sm ${
+            toast.type === 'success' ? 'bg-green-600' : 'bg-red-500'
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
 
-      {/* Navbar */}
       <nav className="bg-white shadow px-6 py-4 flex justify-between items-center">
         <h1 className="text-xl font-bold text-gray-800">Course Registration</h1>
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-500">Welcome, {user?.name}</span>
-          <Link
-            to="/catalog"
-            className="btn-primary text-sm py-1 px-4"
-          >
+          <Link to="/catalog" className="btn-primary text-sm py-1 px-4">
             Browse Courses
           </Link>
           <button
@@ -63,21 +92,18 @@ export default function StudentDashboard() {
         </div>
       </nav>
 
-      {/* Main Content */}
       <main className="max-w-4xl mx-auto p-6">
         <h2 className="text-2xl font-bold text-gray-800 mb-6">My Schedule</h2>
 
-        {/* Error */}
         {error && (
           <div className="bg-red-50 border border-red-300 text-red-600 text-sm rounded-lg px-4 py-3 mb-5">
             {error}
           </div>
         )}
 
-        {/* Loading Skeleton */}
         {loading && (
           <div className="space-y-4">
-            {[1, 2, 3].map(i => (
+            {[1, 2, 3].map((i) => (
               <div key={i} className="bg-white rounded-xl shadow p-4 animate-pulse">
                 <div className="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
                 <div className="h-3 bg-gray-200 rounded w-1/2"></div>
@@ -86,7 +112,6 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {/* Empty State */}
         {!loading && enrollments.length === 0 && !error && (
           <div className="bg-white rounded-xl shadow p-8 text-center text-gray-500">
             <p className="text-lg font-medium mb-2">No courses enrolled yet.</p>
@@ -97,31 +122,38 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {/* Enrollment Cards */}
         {!loading && enrollments.length > 0 && (
           <div className="space-y-4">
-            {enrollments.map(enrollment => (
+            {enrollments.map((enrollment) => (
               <div
-                key={enrollment.id}
+                key={enrollment.enrollment_id}
                 className="bg-white rounded-xl shadow p-5 flex justify-between items-center"
               >
                 <div>
                   <p className="font-semibold text-gray-800">
-                    {enrollment.course_code} — {enrollment.course_name}
+                    {enrollment.course_code} — {enrollment.course_title}
                   </p>
                   <p className="text-sm text-gray-500 mt-1">
-                    Section {enrollment.section_number} &nbsp;|&nbsp;
-                    {enrollment.instructor} &nbsp;|&nbsp;
-                    {enrollment.schedule} &nbsp;|&nbsp;
-                    {enrollment.location}
+                    Section {enrollment.section_id}
+                    &nbsp;|&nbsp;{enrollment.professor_name || 'Professor TBA'}
+                    &nbsp;|&nbsp;{formatMeeting(enrollment)}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {enrollment.semester_term && enrollment.semester_year
+                      ? `${enrollment.semester_term} ${enrollment.semester_year}`
+                      : `Semester ${enrollment.semester_id}`}
                   </p>
                 </div>
-                <button
-                  className="btn-danger"
-                  onClick={() => handleDrop(enrollment.id)}
-                >
-                  Drop
-                </button>
+
+                {['enrolled', 'waitlisted'].includes(enrollment.status) && (
+                  <button
+                    className="btn-danger disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => handleDrop(enrollment.enrollment_id)}
+                    disabled={droppingId === enrollment.enrollment_id}
+                  >
+                    {droppingId === enrollment.enrollment_id ? 'Dropping...' : 'Drop'}
+                  </button>
+                )}
               </div>
             ))}
           </div>

@@ -68,7 +68,7 @@ export default function ManageSections() {
 
       setProfessors((professorData?.User || []).map((entry) => entry?.User || entry));
     } catch (err) {
-      console.error('LOOKUP LOAD ERROR:', err.response?.data || err);
+      //console.error('LOOKUP LOAD ERROR:', err.response?.data || err);--used during dev
       setError('Failed to load lookup data.');
     }
   };
@@ -97,7 +97,7 @@ export default function ManageSections() {
       setSections(data?.Section || []);
       setMeta(data?.Meta || null);
     } catch (err) {
-      console.error('SECTION LOAD ERROR:', err.response?.data || err);
+      //console.error('SECTION LOAD ERROR:', err.response?.data || err);--used during dev
       setError(err.response?.data?.error || 'Failed to load sections.');
     } finally {
       setLoading(false);
@@ -167,8 +167,8 @@ export default function ManageSections() {
 
     try {
       const payload = buildPayload();
-      console.log('SECTION PAYLOAD:', payload);
-      console.log('SECTION FORM:', form);
+      //console.log('SECTION PAYLOAD:', payload);--used during dev
+      //console.log('SECTION FORM:', form);--used during dev
 
       if (editingSection) {
         await updateSection(editingSection.section_id, payload);
@@ -181,7 +181,7 @@ export default function ManageSections() {
       closeModal();
       await fetchSections(page);
     } catch (err) {
-      console.error('SECTION SUBMIT ERROR:', err.response?.data || err);
+      //console.error('SECTION SUBMIT ERROR:', err.response?.data || err);--used during dev
       showToast(
         err.response?.data?.error || 'Action failed. Please try again.',
         'error'
@@ -199,7 +199,7 @@ export default function ManageSections() {
       showToast('Section deleted.');
       await fetchSections(page);
     } catch (err) {
-      console.error('DELETE SECTION ERROR:', err.response?.data || err);
+      //console.error('DELETE SECTION ERROR:', err.response?.data || err);--used during dev
       showToast(
         err.response?.data?.error || 'Failed to delete section.',
         'error'
@@ -277,7 +277,7 @@ export default function ManageSections() {
         >
           <option value="">All Semesters</option>
           {semesters.map((semester) => (
-            <option key={semester.semester_id} value={String(semester.semester_id)}>
+            <option key={`semester-${semester.semester_id}`} value={String(semester.semester_id)}>
               {semester.term} {semester.year}
             </option>
           ))}
@@ -432,7 +432,7 @@ export default function ManageSections() {
                 >
                   <option value="">Select a semester...</option>
                   {semesters.map((semester) => (
-                    <option key={semester.semester_id} value={String(semester.semester_id)}>
+                    <option key={`semester-${semester.semester_id}`} value={String(semester.semester_id)}>
                       {semester.term} {semester.year}
                     </option>
                   ))}
@@ -452,7 +452,7 @@ export default function ManageSections() {
                 >
                   <option value="">Select a professor...</option>
                   {normalizedProfessors.map((prof) => (
-                    <option key={prof.role_id} value={String(prof.role_id)}>
+                    <option key={`prof-${prof.role_id}-${prof.id}`} value={String(prof.role_id)}>
                       {prof.name}
                     </option>
                   ))}
@@ -479,7 +479,7 @@ export default function ManageSections() {
                   Days
                 </label>
                 <input
-                  type="text"
+                  type="time"
                   name="days"
                   value={form.days}
                   onChange={handleChange}
@@ -494,7 +494,7 @@ export default function ManageSections() {
                     Start Time
                   </label>
                   <input
-                    type="text"
+                    type="time"
                     name="startTm"
                     value={form.startTm}
                     onChange={handleChange}
@@ -508,7 +508,7 @@ export default function ManageSections() {
                     End Time
                   </label>
                   <input
-                    type="text"
+                    type="time"
                     name="endTm"
                     value={form.endTm}
                     onChange={handleChange}

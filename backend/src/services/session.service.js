@@ -91,7 +91,7 @@ class SessionService {
 			userAgent: req.get('user-agent') ?? null,
 		};
 
-		console.log('SESSION BEFORE SAVE:', req.session.auth);
+		//console.log('SESSION BEFORE SAVE:', req.session.auth);--used during dev
 
 		await new Promise((resolve, reject) => {
 			req.session.save((err) => {
