@@ -13,7 +13,6 @@ const EMPTY_FORM = {
   detail: '',
 };
 
-
 export default function ManageUsers() {
   const [users, setUsers] = useState([]);
   const [meta, setMeta] = useState(null);
@@ -25,20 +24,16 @@ export default function ManageUsers() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
 
-  //pagination
-  const [page, setPage] = useState(1);
-  const [limit] = useState(10);
-
   useEffect(() => {
-    fetchUsers(page);
-  }, [page]);
+    fetchUsers();
+  }, []);
 
-  const fetchUsers = async (nextPage = 1) => {
+  const fetchUsers = async () => {
     try {
       setLoading(true);
       setError('');
 
-      const data = await getUsers({ page: nextPage, limit });
+      const data = await getUsers({ page: 1, limit: 25 });
 
       setUsers(data?.User || []);
       setMeta(data?.Meta || null);
@@ -118,7 +113,7 @@ export default function ManageUsers() {
       }
 
       closeModal();
-      await fetchUsers(page);
+      await fetchUsers();
     } catch (err) {
       showToast(
         err.response?.data?.error || 'Action failed. Please try again.',
@@ -135,9 +130,8 @@ export default function ManageUsers() {
     try {
       await deleteUser(userId);
       showToast('User deleted.');
-      await fetchUsers(page);
+      await fetchUsers();
     } catch (err) {
-      console.error('DELETE USER ERROR:', err.response?.data || err);
       showToast(
         err.response?.data?.error || 'Failed to delete user.',
         'error'
@@ -241,35 +235,6 @@ export default function ManageUsers() {
           </table>
         </div>
       )}
-
-      {!loading && meta && (meta.totalPages ?? 1) > 1 && (
-        <div className="flex items-center justify-between mt-4">
-          <button
-            onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-            disabled={page === 1}
-            className="px-4 py-2 text-sm rounded-lg border disabled:opacity-50"
-          >
-            Previous
-          </button>
-
-          <span className="text-sm text-gray-600">
-            Page {meta.page ?? page} of {meta.totalPages ?? 1}
-          </span>
-
-          <button
-            onClick={() =>
-              setPage((prev) =>
-                Math.min(prev + 1, meta.totalPages ?? prev + 1)
-              )
-            }
-            disabled={page >= (meta.totalPages ?? 1)}
-            className="px-4 py-2 text-sm rounded-lg border disabled:opacity-50"
-          >
-            Next
-          </button>
-        </div>
-      )}
-      
 
       {!loading && users.length === 0 && !error && (
         <div className="bg-white rounded-xl shadow p-8 text-center text-gray-500">

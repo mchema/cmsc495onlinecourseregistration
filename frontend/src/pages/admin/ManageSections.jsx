@@ -145,17 +145,25 @@ export default function ManageSections() {
   };
 
   const buildPayload = () => {
+    const normalizeTime = (value) => {
+      if (!value) return '';
+      return value.length === 5 ? `${value}:00` : value;
+    };
+
     const payload = {
       semId: Number(form.semId),
       profId: Number(form.profId),
       capacity: Number(form.capacity),
     };
 
-    const hasAnyTimeField = form.days || form.startTm || form.endTm;
+    const normalizedStart = normalizeTime(form.startTm);
+    const normalizedEnd = normalizeTime(form.endTm);
+
+    const hasAnyTimeField = form.days || normalizedStart || normalizedEnd;
     if (hasAnyTimeField) {
       payload.days = form.days;
-      payload.startTm = form.startTm;
-      payload.endTm = form.endTm;
+      payload.startTm = normalizedStart;
+      payload.endTm = normalizedEnd;
     }
 
     return payload;
@@ -164,6 +172,23 @@ export default function ManageSections() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+    
+    //frontend check
+    const hasStart = !!form.startTm;
+    const hasEnd = !!form.endTm;
+    const hasDays = !!form.days;
+
+    if ((hasStart && !hasEnd) || (!hasStart && hasEnd)) {
+      showToast('Please provide both a start time and end time.', 'error');
+      setSubmitting(false);
+      return;
+    }
+
+    if ((hasStart || hasEnd) && !hasDays) {
+      showToast('Please provide meeting days when using start and end times.', 'error');
+      setSubmitting(false);
+      return;
+    }
 
     try {
       const payload = buildPayload();
@@ -183,7 +208,9 @@ export default function ManageSections() {
     } catch (err) {
       //console.error('SECTION SUBMIT ERROR:', err.response?.data || err);--used during dev
       showToast(
-        err.response?.data?.error || 'Action failed. Please try again.',
+        err.response?.data?.details
+        ? JSON.stringify(err.response.data.details)
+        : err.response?.data?.error || 'Action failed. Please try again.',
         'error'
       );
     } finally {
@@ -331,7 +358,9 @@ export default function ManageSections() {
                     <td className="px-5 py-3 text-gray-500">
                       {formatMeeting(section)}
                     </td>
-                    <td className="px-5 py-3 text-gray-500">{section.capacity}</td>
+                    <td className="px-5 py-3 text-gray-500">
+                      {section.enrolled_count ?? 0}/{section.capacity}
+                    </td>
                     <td className="px-5 py-3 text-right space-x-2">
                       <button
                         onClick={() => openEditModal(section)}
@@ -479,7 +508,7 @@ export default function ManageSections() {
                   Days
                 </label>
                 <input
-                  type="time"
+                  type="text"
                   name="days"
                   value={form.days}
                   onChange={handleChange}

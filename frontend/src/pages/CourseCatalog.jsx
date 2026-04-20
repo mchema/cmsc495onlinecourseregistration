@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getCatalogData } from '../api/catalog.js';
-import { createEnrollment } from '../api/enrollment.js';
+import { listEnrollments, createEnrollment } from '../api/enrollment.js';
 
 export default function CourseCatalog() {
   const { user, logout } = useAuth();
@@ -13,6 +13,7 @@ export default function CourseCatalog() {
   const [error, setError] = useState('');
   const [toast, setToast] = useState({ message: '', type: '' });
   const [submittingSectionId, setSubmittingSectionId] = useState(null);
+  const [activeSectionIds, setActiveSectionIds] = useState(new Set());
 
   useEffect(() => {
     fetchCatalog();
@@ -23,15 +24,28 @@ export default function CourseCatalog() {
       setLoading(true);
       setError('');
 
-      const data = await getCatalogData({
-        coursePage: 1,
-        courseLimit: 100,
-        sectionPage: 1,
-      });
+      const [catalogData, enrollmentData] = await Promise.all([
+        getCatalogData({
+          coursePage: 1,
+          courseLimit: 100,
+          sectionPage: 1,
+          sectionLimit: 50,
+        }),
+        listEnrollments(),
+      ]);
 
-      setCourses(data.courses || []);
+      setCourses(catalogData.courses || []);
+
+      const active = (Array.isArray(enrollmentData) ? enrollmentData : [])
+        .filter((row) =>
+          ['enrolled', 'waitlisted'].includes(
+            String(row.status || '').toLowerCase()
+          )
+        )
+        .map((row) => Number(row.section_id));
+
+      setActiveSectionIds(new Set(active));
     } catch (err) {
-      //console.error('CATALOG LOAD ERROR:', err.response?.data || err);--used during dev
       setError(err.response?.data?.error || 'Failed to load course catalog.');
     } finally {
       setLoading(false);
@@ -56,10 +70,16 @@ export default function CourseCatalog() {
       await fetchCatalog(); //refresh enrollablel sections
     } catch (err) {
       //console.error('ENROLL ERROR:', err.response?.data || err);--used during dev
-      showToast(
-        err.response?.data?.error || 'Enrollment failed. Please try again.',
-        'error'
-      );
+      const details = err.response?.data?.details;
+
+      if (Array.isArray(details) && details.length > 0) {
+        showToast(`Missing prerequisite: ${details.join(', ')}`, 'error');
+      } else {
+        showToast(
+          err.response?.data?.error || 'Enrollment failed. Please try again.',
+          'error'
+        );
+      }
     } finally {
       setSubmittingSectionId(null);
     }
@@ -177,8 +197,11 @@ export default function CourseCatalog() {
                 </div>
 
                 <div className="space-y-2">
-                  {course.sections && course.sections.length > 0 ? (
-                    course.sections.map((section) => (
+                {course.sections && course.sections.length > 0 ? (
+                  course.sections.map((section) => {
+                    const alreadyEnrolled = activeSectionIds.has(Number(section.section_id));
+
+                    return (
                       <div
                         key={section.section_id}
                         className="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-3"
@@ -186,19 +209,30 @@ export default function CourseCatalog() {
                         <div className="text-sm text-gray-700">
                           <span className="font-medium">Section {section.section_id}</span>
                           <span>&nbsp;|&nbsp;{formatMeeting(section)}</span>
-                          <span>&nbsp;|&nbsp;Capacity: {section.capacity}</span>
+                          <span>
+                            &nbsp;|&nbsp;
+                            {Math.max(
+                              Number(section.capacity || 0) - Number(section.enrolled_count || 0),
+                              0
+                            )} seats remaining
+                          </span>
                         </div>
 
                         <button
                           onClick={() => handleEnroll(section.section_id)}
-                          disabled={submittingSectionId === section.section_id}
+                          disabled={submittingSectionId === section.section_id || alreadyEnrolled}
                           className="btn-primary text-sm py-1 px-4 ml-4 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {submittingSectionId === section.section_id ? 'Enrolling...' : 'Enroll'}
+                          {alreadyEnrolled
+                            ? 'Already Enrolled'
+                            : submittingSectionId === section.section_id
+                            ? 'Enrolling...'
+                            : 'Enroll'}
                         </button>
                       </div>
-                    ))
-                  ) : (
+                    );
+                  })
+                ) : (
                     <p className="text-sm text-gray-400 italic">
                       No sections available for this course.
                     </p>

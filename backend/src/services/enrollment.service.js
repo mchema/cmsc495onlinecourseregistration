@@ -303,6 +303,8 @@ class EnrollmentService {
         if (actingUser.role === 'STUDENT') {
             where.push('e.student_id = ?');
             params.push(Number(actingUser.role_id));
+
+            where.push("e.status IN ('enrolled', 'waitlisted')");
         } else if (actingUser.role === 'ADMIN') {
             if (query.stuId) {
                 where.push('e.student_id = ?');

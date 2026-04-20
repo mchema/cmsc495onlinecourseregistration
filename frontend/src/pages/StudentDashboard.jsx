@@ -20,7 +20,16 @@ export default function StudentDashboard() {
       setLoading(true);
       setError('');
       const data = await listEnrollments();
-      setEnrollments(Array.isArray(data) ? data : []);
+      const rows = Array.isArray(data) ? data : [];
+
+      setEnrollments(
+        rows.filter((enrollment) =>
+          ['enrolled', 'waitlisted'].includes(
+            String(enrollment.status || '').toLowerCase()
+          )
+        )
+      );
+      
     } catch (err) {
       //console.error('ENROLLMENT LOAD ERROR:', err.response?.data || err); --used during dev
       setError(err.response?.data?.error || 'Failed to load your schedule. Please try again.');

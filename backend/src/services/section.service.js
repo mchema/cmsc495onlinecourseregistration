@@ -139,38 +139,66 @@ class SectionService {
         const l = Number.isInteger(Number(limit)) && Number(limit) > 0 ? Math.min(Number(limit), 100) : 10;
         const o = (np - 1) * l;
 
-        // Where and Params arrays
         let w = [];
         let p = [];
 
         if (search) {
-            w.push('(section_id LIKE ? OR professor_id LIKE ?)');
+            w.push('(CAST(s.section_id AS CHAR) LIKE ? OR CAST(s.professor_id AS CHAR) LIKE ?)');
             p.push('%' + search + '%', '%' + search + '%');
         }
 
         if (courseId) {
-            w.push('course_id = ?');
+            w.push('s.course_id = ?');
             p.push(courseId);
         }
 
         if (semesterId) {
-            w.push('semester_id = ?');
+            w.push('s.semester_id = ?');
             p.push(semesterId);
         }
 
         if (professorId) {
-            w.push('professor_id = ?');
+            w.push('s.professor_id = ?');
             p.push(professorId);
         }
 
         const q = w.length > 0 ? ' WHERE ' + w.join(' AND ') : '';
-        const c = await db.query('SELECT COUNT(*) AS count FROM sections' + q, p);
-        const r = await db.query('SELECT * FROM sections' + q + ' ORDER BY section_id DESC LIMIT ? OFFSET ?', [...p, l, o]);
 
-        const data = r.map((row) => Section.fromPersistence(row));
+        const c = await db.query(
+            `
+            SELECT COUNT(*) AS count
+            FROM sections s
+            ${q}
+            `,
+            p
+        );
+
+        const r = await db.query(
+            `
+            SELECT
+                s.*,
+                COALESCE(ec.enrolled_count, 0) AS enrolled_count
+            FROM sections s
+            LEFT JOIN (
+                SELECT section_id, COUNT(*) AS enrolled_count
+                FROM enrollments
+                WHERE status = 'enrolled'
+                GROUP BY section_id
+            ) ec ON s.section_id = ec.section_id
+            ${q}
+            ORDER BY s.section_id DESC
+            LIMIT ? OFFSET ?
+            `,
+            [...p, l, o]
+        );
+
+        const data = r.map((row) => ({
+            ...Section.fromPersistence(row).toSafeObject(),
+            enrolled_count: Number(row.enrolled_count || 0),
+        }));
 
         return {
-            data: data.map((s) => s.toSafeObject()),
+            data,
             meta: {
                 page: np,
                 limit: l,
