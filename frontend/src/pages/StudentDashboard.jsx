@@ -85,13 +85,30 @@ export default function StudentDashboard() {
         </div>
       )}
 
-      <nav className="bg-white shadow px-6 py-4 flex justify-between items-center">
+     <nav className="bg-white shadow px-6 py-4 flex justify-between items-center">
         <h1 className="text-xl font-bold text-gray-800">Course Registration</h1>
+
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-500">Welcome, {user?.name}</span>
+
           <Link to="/catalog" className="btn-primary text-sm py-1 px-4">
             Browse Courses
           </Link>
+
+          <Link
+            to="/student"
+            className="text-sm text-blue-600 hover:text-blue-700 transition"
+          >
+            My Schedule
+          </Link>
+
+          <Link
+            to="/completed"
+            className="text-sm text-blue-600 hover:text-blue-700 transition"
+          >
+            Completed Courses
+          </Link>
+
           <button
             onClick={handleLogout}
             className="text-sm text-red-500 hover:text-red-700 transition"

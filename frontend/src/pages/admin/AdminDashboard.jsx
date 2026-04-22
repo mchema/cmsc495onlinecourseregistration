@@ -3,8 +3,9 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import ManageUsers from './ManageUsers.jsx';
 import ManageCourses from './ManageCourses.jsx';
 import ManageSections from './ManageSections.jsx';
+import ManageEnrollments from './ManageEnrollments.jsx';
 
-const TABS = ['Users', 'Courses', 'Sections'];
+const TABS = ['Users', 'Courses', 'Sections', 'Enrollments'];
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
@@ -62,6 +63,7 @@ export default function AdminDashboard() {
         {activeTab === 'Users' && <ManageUsers />}
         {activeTab === 'Courses' && <ManageCourses />}
         {activeTab === 'Sections' && <ManageSections />}
+        {activeTab === 'Enrollments' && <ManageEnrollments />}
       </main>
 
     </div>

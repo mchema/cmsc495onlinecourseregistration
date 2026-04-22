@@ -106,7 +106,11 @@ class AdminService {
             throw new Errors.AuthorizationError('At least one admin must remain in the system.');
         }
 
-        await db.query('DELETE FROM users WHERE user_id = ?', [id]);
+        await db.query('DELETE FROM users WHERE user_id = ?', [id]); // ---note: need to clean up 
+        // this itemUser deletion works for standard records, 
+        // but deletion of users with active dependent records 
+        // such as session entries may still produce a server error 
+        // and requires additional backend cleanup handling.
     }
 
     // get SQL Query for Inserting Role-Specific Data

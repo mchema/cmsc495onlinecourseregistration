@@ -69,16 +69,21 @@ export default function CourseCatalog() {
       showToast('Successfully enrolled!', 'success');
       await fetchCatalog(); //refresh enrollablel sections
     } catch (err) {
-      //console.error('ENROLL ERROR:', err.response?.data || err);--used during dev
+      const apiError = err.response?.data?.error;
       const details = err.response?.data?.details;
 
       if (Array.isArray(details) && details.length > 0) {
         showToast(`Missing prerequisite: ${details.join(', ')}`, 'error');
+      } else if (
+        apiError === 'Student already has an enrollment record for this section.'
+      ) {
+        showToast('You are already enrolled in this section.', 'error');
+      } else if (
+        apiError === 'Section is full.'
+      ) {
+        showToast('This section is full.', 'error');
       } else {
-        showToast(
-          err.response?.data?.error || 'Enrollment failed. Please try again.',
-          'error'
-        );
+        showToast(apiError || 'Enrollment failed. Please try again.', 'error');
       }
     } finally {
       setSubmittingSectionId(null);
@@ -127,10 +132,15 @@ export default function CourseCatalog() {
       <nav className="bg-white shadow px-6 py-4 flex justify-between items-center">
         <h1 className="text-xl font-bold text-gray-800">Course Registration</h1>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-500">Welcome, {user?.name}</span>
+         <span className="text-sm text-gray-500">Welcome, {user?.name}</span>
           <Link to="/student" className="text-sm text-blue-600 hover:underline">
             My Schedule
           </Link>
+
+          <Link to="/completed" className="text-sm text-blue-600 hover:underline">
+            Completed Courses
+          </Link>
+
           <button
             onClick={handleLogout}
             className="text-sm text-red-500 hover:text-red-700 transition"

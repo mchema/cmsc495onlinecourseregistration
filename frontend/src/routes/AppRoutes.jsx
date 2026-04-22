@@ -6,6 +6,7 @@ import CourseCatalog from '../pages/CourseCatalog.jsx';
 import AdminDashboard from '../pages/admin/AdminDashboard.jsx';
 import ProtectedRoute from '../components/layout/shared/ProtectedRoute.jsx';
 import ChangePasswordPage from '../pages/ChangePasswordPage.jsx';
+import CompletedCourses from '../pages/CompletedCourses.jsx';
 
 // Add this later when ready
 // import ChangePasswordPage from '../pages/ChangePasswordPage.jsx';
@@ -24,6 +25,7 @@ export default function AppRoutes() {
         <Route element={<ProtectedRoute allowedRoles={['STUDENT']} />}>
           <Route path="/student" element={<StudentDashboard />} />
           <Route path="/catalog" element={<CourseCatalog />} />
+          <Route path="/completed" element={<CompletedCourses />} />
         </Route>
 
         {/* Admin-only routes */}

@@ -10,7 +10,7 @@ class EnrollmentService {
         this.pre = new PrerequisiteService();
     }
 
-        async addEnroll(studentId, sectionId, actingUser) {
+        /*async addEnroll(studentId, sectionId, actingUser) {
         this.verifyOwn(studentId, actingUser);
 
         const s = await db.query('SELECT * FROM students WHERE student_id = ?', [studentId]);
@@ -36,6 +36,107 @@ class EnrollmentService {
 
         const e = await db.query('SELECT * FROM enrollments WHERE student_id = ? AND section_id = ? LIMIT 1', [studentId, sectionId]);
         if (e.length > 0) {
+            throw new Errors.ValidationError('Student already has an enrollment record for this section.');
+        }
+
+        const id = await this.enrollHelp(sectionId, studentId);
+
+        const r = await db.query('SELECT * FROM enrollments WHERE enrollment_id = ?', [id]);
+        const en = Enrollment.fromPersistence(r[0]);
+        return en.toObject();
+    }*/
+
+    //- new addEnroll() fixes enrollment service drops by updating the enrollment row
+    async addEnroll(studentId, sectionId, actingUser) {
+        this.verifyOwn(studentId, actingUser);
+
+        const s = await db.query('SELECT * FROM students WHERE student_id = ?', [studentId]);
+        if (s.length === 0) {
+            throw new Errors.NotFoundError('Student');
+        }
+
+        const sec = await this.section.getSection(sectionId);
+
+        const pre = await this.pre.getPrereqs(sec.course_id);
+        if (pre.data.length > 0) {
+            const c = await db.query(
+                'SELECT s.course_id FROM enrollments e INNER JOIN sections s ON e.section_id = s.section_id WHERE e.student_id = ? AND e.status = ?',
+                [studentId, 'completed']
+            );
+            const ids = new Set(c.map((row) => row.course_id));
+            const miss = pre.data.filter((prereq) => !ids.has(prereq.courseId));
+
+            if (miss.length > 0) {
+                throw new Errors.PrerequisiteNotMetError(
+                    sec.course_id,
+                    miss.map((prereq) => prereq.courseCode)
+                );
+            }
+        }
+
+        const existing = await db.query(
+            'SELECT * FROM enrollments WHERE student_id = ? AND section_id = ? LIMIT 1',
+            [studentId, sectionId]
+        );
+
+        if (existing.length > 0) {
+            const row = existing[0];
+
+            if (row.status === 'dropped') {
+                const con = await db.getConnection();
+                try {
+                    await db.beginTransaction(con);
+
+                    const c = await db.queryWithConnection(
+                        con,
+                        'SELECT capacity FROM sections WHERE section_id = ? FOR UPDATE',
+                        [sectionId]
+                    );
+                    if (c.length === 0) {
+                        throw new Errors.NotFoundError('Section');
+                    }
+
+                    const cap = Number(c[0].capacity);
+                    const e = await db.queryWithConnection(
+                        con,
+                        'SELECT enrollment_id, status FROM enrollments WHERE section_id = ? ORDER BY enrollment_id ASC FOR UPDATE',
+                        [sectionId]
+                    );
+
+                    const enrolledCount = e.filter((r) => r.status === 'enrolled').length;
+                    const waitlistedCount = e.filter((r) => r.status === 'waitlisted').length;
+
+                    let nextStatus = null;
+                    if (enrolledCount < cap) {
+                        nextStatus = 'enrolled';
+                    } else if (waitlistedCount < 3) {
+                        nextStatus = 'waitlisted';
+                    } else {
+                        throw new Errors.SectionFullError(sectionId);
+                    }
+
+                    await db.queryWithConnection(
+                        con,
+                        'UPDATE enrollments SET status = ? WHERE enrollment_id = ?',
+                        [nextStatus, row.enrollment_id]
+                    );
+
+                    await db.commit(con);
+
+                    const r = await db.query(
+                        'SELECT * FROM enrollments WHERE enrollment_id = ?',
+                        [row.enrollment_id]
+                    );
+                    const en = Enrollment.fromPersistence(r[0]);
+                    return en.toObject();
+                } catch (err) {
+                    await db.rollback(con);
+                    throw err;
+                } finally {
+                    db.releaseConnection(con);
+                }
+            }
+
             throw new Errors.ValidationError('Student already has an enrollment record for this section.');
         }
 
@@ -300,12 +401,17 @@ class EnrollmentService {
         const params = [];
         const where = [];
 
-        if (actingUser.role === 'STUDENT') {
-            where.push('e.student_id = ?');
-            params.push(Number(actingUser.role_id));
+            if (actingUser.role === 'STUDENT') {
+                where.push('e.student_id = ?');
+                params.push(Number(actingUser.role_id));
 
-            where.push("e.status IN ('enrolled', 'waitlisted')");
-        } else if (actingUser.role === 'ADMIN') {
+                if (query.status) {
+                    where.push('e.status = ?');
+                    params.push(query.status);
+                } else {
+                    where.push("e.status IN ('enrolled', 'waitlisted')");
+                }
+            } else if (actingUser.role === 'ADMIN') {
             if (query.stuId) {
                 where.push('e.student_id = ?');
                 params.push(Number(query.stuId));
