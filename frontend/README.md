@@ -38,27 +38,35 @@ From the `frontend/` directory, install dependencies:
 
 ```bash
 npm install
+```
 
-Running the Frontend
+## Running the Frontend
 
 Start the development server:
 
+```bash
 npm run dev
+```
 
 The frontend will run at:
 
+```bash
 http://localhost:5173
+```
 
-Backend Connection
+## Backend Connection
 
 During local development, the frontend communicates with the backend running at:
 
+```bash
 http://localhost:3000
+```
 
 Make sure the backend server is running before testing login, enrollment, admin management, or completed-course workflows.
 
-Key Features
-Student Features
+## Key Features
+
+## Student Features
    - secure login
    - first-login password change
    - course catalog browsing
@@ -68,7 +76,7 @@ Student Features
    - completed courses view
    - prerequisite enforcement with user-friendly feedback
 
-Administrator Features
+## Administrator Features
    - user management
    - paginated user list
    - role updates
@@ -76,8 +84,9 @@ Administrator Features
    - enrollment management
    - course completion updates for student progression
 
-Folder Structure
+## Folder Structure
 
+```Bash
 frontend/
 ├── public/                  # Static assets
 ├── src/
@@ -91,76 +100,90 @@ frontend/
 ├── index.html               # Vite HTML entry
 ├── package.json             # Frontend dependencies and scripts
 └── vite.config.js           # Vite configuration
+```
 
-Important Pages
+## Important Pages
 
 Typical frontend pages include:
 
-LoginPage.jsx
-ChangePassword.jsx
-CourseCatalog.jsx
-StudentDashboard.jsx
-CompletedCourses.jsx
-AdminDashboard.jsx
-ManageUsers.jsx
-ManageSections.jsx
-ManageEnrollments.jsx
-Authentication and Routing
+    - `LoginPage.jsx`
+    - `ChangePassword.jsx`
+    - `CourseCatalog.jsx`
+    - `StudentDashboard.jsx`
+    - `CompletedCourses.jsx`
+    - `AdminDashboard.jsx`
+    - `ManageUsers.jsx`
+    - `ManageSections.jsx`
+    - `ManageEnrollments.jsx`
+
+## Authentication and Routing
 
 Authentication state is managed through AuthContext. Protected routes redirect users based on session status and role.
 
 Examples:
 
-unauthenticated users are redirected to /login
-first-login users are redirected to the password-change page
-student-only and admin-only pages are separated through protected route checks
-API Layer
+    - unauthenticated users are redirected to /login
+    - first-login users are redirected to the password-change page
+    - student-only and admin-only pages are separated through protected route checks
+
+## API Layer
 
 All frontend requests are routed through the src/api/ directory. This keeps HTTP logic out of page components and improves maintainability.
 
 Examples include:
 
-auth.js
-admin.js
-catalog.js
-enrollment.js
-client.js
-Available Scripts
+- auth.js
+- admin.js
+- catalog.js
+- enrollment.js
+- client.js
+
+## Available Scripts
 
 Run the frontend locally:
 
+```bash
 npm run dev
+```
 
 Create a production build:
 
+```bash
 npm run build
+```
 
 Preview the production build locally:
 
+```bash
 npm run preview
+```
 
 Run linting if configured:
 
+```bash
 npm run lint
-Typical Local Workflow
-Start MySQL and confirm the database is seeded.
-Start the backend from the project root or backend directory.
-Start the frontend from the frontend/ directory with npm run dev.
-Open http://localhost:5173.
-Test student and administrator workflows through the browser.
-Notes
-This frontend depends on the backend being available for live authentication and workflow testing.
-Session behavior, enrollment validation, prerequisite checks, and admin actions are enforced by the backend and surfaced through the frontend UI.
-For final demonstration, verify the following workflows before presenting:
-admin login
-student first login and password change
-course enrollment
-prerequisite failure messaging
-drop and re-enroll behavior
-admin completion workflow
-completed-course visibility
+```
 
-Team
+## Typical Local Workflow
+1.tart MySQL and confirm the database is seeded.
+2.Start the backend from the project root or backend directory.
+3.Start the frontend from the frontend/ directory with npm run dev.
+4.Open http://localhost:5173.
+5.Test student and administrator workflows through the browser.
+
+## Notes
+- This frontend depends on the backend being available for live authentication and workflow testing.
+- Session behavior, enrollment validation, prerequisite checks, and admin actions are enforced by the backend and surfaced through the frontend UI.
+- For final demonstration, verify the following workflows before presenting:
+    - admin login
+    - student first login and password change
+    - course enrollment
+    - prerequisite failure messaging
+    - drop and re-enroll behavior
+    - admin completion workflow
+    - completed-course visibility
+
+## Team
 
 Group Delta
 CMSC 495
