@@ -1,6 +1,6 @@
 # Course Registration System
 
-Course Registration System is a CMSC 495 Group Golf project for managing users, courses, prerequisites, semesters, sections, and enrollments. The repository contains the backend API, the frontend client, database schema/seed data, and a published OpenAPI contract.
+Course Registration System is a CMSC 495 Group Delta project for managing users, courses, prerequisites, semesters, sections, and enrollments. The repository contains the backend API, the frontend client, database schema/seed data, and a published OpenAPI contract.
 
 ## API Documentation
 
@@ -88,7 +88,18 @@ GET /api/health
 
 ## Run The Frontend
 
-Not yet implemented. Check back later!
+Start the frontend from the frontend/ directory:
+
+```bash
+cd frontend
+npm run dev
+```
+
+Default frontend URL:
+
+```bash
+http://localhost:5173
+```
 
 ## API Test Suite
 
@@ -105,6 +116,30 @@ Suite Coverage:
 - concurrency-sensitive behavior such as simultaneous enrollments, profile updates, role changes, and access-code operations
 - regression checks for error response shape, service-layer guards, domain normalization, and transactional role updates
 
+### Typical Local Workflow
+1. Confirm MySQL is running.
+2. Configure the root .env file.
+3. Run npm run db:reset to initialize schema and seed data.
+4. Start the backend with npm start.
+5. Start the frontend from frontend/ with npm run dev.
+6. Open http://localhost:5173 in your browser.
+7. Test student and administrator workflows.
+
+### Implemented Workflows
+The current system supports:
+
+- secure login and logout
+- first-login password change
+- protected route enforcement
+- course catalog browsing
+- enrollment and drop workflows
+- prerequisite enforcement
+- re-enrollment after drop
+- completed-course visibility
+- administrative user management
+- administrative section management
+- administrative enrollment completion workflow
+
 ## Useful Commands
 
 ```bash
@@ -115,3 +150,19 @@ npm run test
 npm run lint
 npm run build
 ```
+## Additional Documentation
+- Frontend-specific instructions: see frontend/README.md
+- API contract: see OpenAPI.yaml
+- Published API docs: see GitHub Pages Swagger UI
+- Project deliverables: project plan, design, test plan, source code documents and user guide
+
+## Team
+
+### Group Delta
+CMSC 495
+
+Team Members:
+
+Adi Avraham
+Mark Chema
+Timashly Cabrera

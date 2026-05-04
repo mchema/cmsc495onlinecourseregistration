@@ -20,7 +20,6 @@ The application uses a shared authentication context and route protection to ens
 - Vite
 - React Router DOM
 - Axios
-- Tailwind CSS utility classes
 - Context API for authentication state
 
 ## Prerequisites
@@ -66,7 +65,7 @@ Make sure the backend server is running before testing login, enrollment, admin 
 
 ## Key Features
 
-## Student Features
+### Student Features
    - secure login
    - first-login password change
    - course catalog browsing
@@ -76,7 +75,7 @@ Make sure the backend server is running before testing login, enrollment, admin 
    - completed courses view
    - prerequisite enforcement with user-friendly feedback
 
-## Administrator Features
+### Administrator Features
    - user management
    - paginated user list
    - role updates
@@ -86,7 +85,7 @@ Make sure the backend server is running before testing login, enrollment, admin 
 
 ## Folder Structure
 
-```Bash
+```bash
 frontend/
 ├── public/                  # Static assets
 ├── src/
@@ -94,7 +93,8 @@ frontend/
 │   ├── components/          # Shared UI and layout components
 │   ├── context/             # Global authentication/session context
 │   ├── pages/               # Student and admin page views
-│   ├── App.jsx              # Main application shell
+│   ├── routes/              # Centralized application routing
+│   ├── App.jsx              # Top-level app shell
 │   └── main.jsx             # Frontend entry point
 ├── .env                     # Local frontend environment values if used
 ├── index.html               # Vite HTML entry
@@ -165,11 +165,11 @@ npm run lint
 ```
 
 ## Typical Local Workflow
-1.tart MySQL and confirm the database is seeded.
-2.Start the backend from the project root or backend directory.
-3.Start the frontend from the frontend/ directory with npm run dev.
-4.Open http://localhost:5173.
-5.Test student and administrator workflows through the browser.
+1. Start MySQL and confirm the database is seeded.
+2. Start the backend from the project root or backend directory.
+3. Start the frontend from the frontend/ directory with npm run dev.
+4. Open http://localhost:5173.
+5. Test student and administrator workflows through the browser.
 
 ## Notes
 - This frontend depends on the backend being available for live authentication and workflow testing.
@@ -187,5 +187,5 @@ npm run lint
 
 Group Delta
 CMSC 495
-Mark Chema
-Timashly Cabrera
+- Mark Chema
+- Timashly Cabrera
